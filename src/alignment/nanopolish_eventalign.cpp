@@ -59,6 +59,7 @@ static const char *EVENTALIGN_USAGE_MESSAGE =
 "      --help                           display this help and exit\n"
 "      --sam                            write output in SAM format\n"
 "  -w, --window=STR                     compute the consensus for window STR (format: ctg:start_id-end_id)\n"
+"  -o, --output_dir=STR                 output directory to place eventalign tables\n"
 "  -r, --reads=FILE                     the 2D ONT reads are in fasta FILE\n"
 "  -b, --bam=FILE                       the reads aligned to the genome assembly are in bam FILE\n"
 "  -g, --genome=FILE                    the genome we are computing a consensus for is in FILE\n"
@@ -81,6 +82,7 @@ namespace opt
     static std::string genome_file;
     static std::string region;
     static std::string summary_file;
+    static std::string output_dir;
     static std::string models_fofn;
     static int output_sam = 0;
     static int progress = 0;
@@ -94,7 +96,7 @@ namespace opt
     static bool write_signal_index = false;
 }
 
-static const char* shortopts = "r:b:g:t:w:q:vn";
+static const char* shortopts = "r:b:g:t:w:q:o:vn";
 
 enum { OPT_HELP = 1, OPT_VERSION, OPT_PROGRESS, OPT_SAM, OPT_SUMMARY, OPT_SCALE_EVENTS, OPT_MODELS_FOFN, OPT_SAMPLES, OPT_SIGNAL_INDEX };
 
@@ -106,6 +108,7 @@ static const struct option longopts[] = {
     { "window",              required_argument, NULL, 'w' },
     { "threads",             required_argument, NULL, 't' },
     { "min-mapping-quality", required_argument, NULL, 'q' },
+    { "output_dir",          required_argument, NULL, 'o' },
     { "summary",             required_argument, NULL, OPT_SUMMARY },
     { "models-fofn",         required_argument, NULL, OPT_MODELS_FOFN },
     { "print-read-names",    no_argument,       NULL, 'n' },
@@ -122,7 +125,7 @@ static const struct option longopts[] = {
 // convenience wrapper for the two output modes
 struct EventalignWriter
 {
-    FILE* tsv_fp;
+    std::string tsv_fp;
     htsFile* sam_fp;
     FILE* summary_fp;
 };
@@ -561,6 +564,9 @@ void realign_read(const ReadDB& read_db,
         fprintf(stderr, "Realigning %s [%zu %zu]\n",
                 read_name.c_str(), sr.events[0].size(), sr.events[1].size());
     }
+    std::string path = writer.tsv_fp + "/" + read_name + ".tsv";
+    FILE* file_handle = fopen(path.c_str(), "w");
+    emit_tsv_header(file_handle);
 
     for(int strand_idx = 0; strand_idx < 2; ++strand_idx) {
 
@@ -593,7 +599,7 @@ void realign_read(const ReadDB& read_db,
             if(opt::output_sam) {
                 emit_event_alignment_sam(writer.sam_fp, sr, hdr, record, alignment);
             } else {
-                emit_event_alignment_tsv(writer.tsv_fp, sr, strand_idx, params, alignment);
+                emit_event_alignment_tsv(file_handle, sr, strand_idx, params, alignment);
             }
 
             if(writer.summary_fp != NULL && summary.num_events > 0) {
@@ -607,6 +613,7 @@ void realign_read(const ReadDB& read_db,
             }
         }
     }
+    fclose(file_handle);
 }
 
 std::vector<EventAlignment> align_read_to_ref(const EventAlignmentParameters& params)
@@ -835,6 +842,7 @@ void parse_eventalign_options(int argc, char** argv)
             case 'r': arg >> opt::reads_file; break;
             case 'g': arg >> opt::genome_file; break;
             case 'b': arg >> opt::bam_file; break;
+            case 'o': arg >> opt::output_dir; break;
             case '?': die = true; break;
             case 't': arg >> opt::num_threads; break;
             case 'q': arg >> opt::min_mapping_quality; break;
@@ -870,7 +878,10 @@ void parse_eventalign_options(int argc, char** argv)
         std::cerr << SUBPROGRAM ": invalid number of threads: " << opt::num_threads << "\n";
         die = true;
     }
-
+    if(opt::output_dir.empty()) {
+        std::cerr << SUBPROGRAM ": a --output_dir file must be provided\n";
+        die = true;
+    }
     if(opt::reads_file.empty()) {
         std::cerr << SUBPROGRAM ": a --reads file must be provided\n";
         die = true;
@@ -918,7 +929,7 @@ int eventalign_main(int argc, char** argv)
 #endif
 
     // Initialize output
-    EventalignWriter writer = { NULL, NULL, NULL };
+    EventalignWriter writer = {std::string(), nullptr, nullptr };
 
     if(!opt::summary_file.empty()) {
         writer.summary_fp = fopen(opt::summary_file.c_str(), "w");
@@ -939,8 +950,7 @@ int eventalign_main(int argc, char** argv)
         writer.sam_fp = hts_open("-", "w");
         emit_sam_header(writer.sam_fp, processor.get_bam_header());
     } else {
-        writer.tsv_fp = stdout;
-        emit_tsv_header(writer.tsv_fp);
+        writer.tsv_fp = opt::output_dir;
     }
 
     // run
