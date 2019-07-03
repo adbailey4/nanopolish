@@ -601,7 +601,7 @@ void realign_read(const ReadDB& read_db,
         }
 
         // write to disk
-//        #pragma omp critical
+        #pragma omp critical
         {
             if(opt::output_sam) {
                 emit_event_alignment_sam(writer.sam_fp, sr, hdr, record, alignment);
