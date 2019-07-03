@@ -282,7 +282,7 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int rea
   std::string query_sequence = this->read_sequence;
   int read_pos = 0;
   int ref_pos = 0;
-
+  int ref_seq_length = ref_seq.length();
 //  seq_align_record.sequence;
 //  this->read_sequence;
   this->sequence_to_alignment.resize(query_sequence.length());
@@ -344,6 +344,9 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int rea
     // Iterate over the pairs of aligned bases
     for(int j = 0; j < cigar_len; ++j) {
       // increment
+      if (ref_pos >= ref_seq_length){
+        ref_pos -= 1;
+      }
       if (read_inc == 0 and ref_inc == 1){
         query_string += "_";
         ref_string += ref_seq[ref_pos];
