@@ -40,7 +40,7 @@ std::vector<AlignedSegment> get_aligned_segments(const bam1_t* record, int read_
     int ref_pos = c->pos;
 
     for (int ci = 0; ci < c->n_cigar; ++ci) {
-        
+
         int cigar_len = cigar[ci] >> 4;
         int cigar_op = cigar[ci] & 0xf;
 

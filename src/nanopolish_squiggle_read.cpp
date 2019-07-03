@@ -7,6 +7,7 @@
 // space nanopore read
 //
 #include <algorithm>
+#include <iostream>
 #include "nanopolish_common.h"
 #include "nanopolish_squiggle_read.h"
 #include "nanopolish_pore_model_set.h"
@@ -14,6 +15,7 @@
 #include "nanopolish_extract.h"
 #include "nanopolish_raw_loader.h"
 #include "nanopolish_fast5_io.h"
+#include "nanopolish_alignment_db.h"
 
 extern "C" {
 #include "event_detection.h"
@@ -270,6 +272,111 @@ void SquiggleRead::load_from_events(const uint32_t flags)
     }
 }
 
+
+void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, const PoreModel* pore_model, int read_stride){
+  // This code is derived from bam_fillmd1_core
+  //uint8_t *ref = NULL;
+  //uint8_t *seq = bam_get_seq(record);
+  uint32_t *cigar = bam_get_cigar(record);
+  const bam1_core_t *c = &record->core;
+  std::string query_sequence = this->read_sequence;
+  int read_pos = 0;
+  int ref_pos = 0;
+
+//  seq_align_record.sequence;
+//  this->read_sequence;
+  sequence_to_alignment.resize(query_sequence.length());
+  bool reversed = bam_is_rev(record);
+  if (reversed){
+    ref_seq = pore_model->pmalphabet->reverse_complement(ref_seq);
+    ref_pos = 1;
+  }
+//  std::cout << read_name << "\n";
+//  std::cout << query_sequence << "\n";
+//  std::cout << ref_seq << "\n";
+
+
+  int start_ref_pos = c->pos;
+  std::string cigar_string;
+  std::string query_string;
+  std::string ref_string;
+  int real_index;
+
+  for (int ci = 0; ci < c->n_cigar; ++ci) {
+    if (reversed) {
+      real_index = c->n_cigar - ci - 1;
+    } else{
+      real_index = ci;
+    }
+    int cigar_len = cigar[real_index] >> 4;
+    int cigar_op = cigar[real_index] & 0xf;
+    // Set the amount that the ref/read positions should be incremented
+    // based on the cigar operation
+    int read_inc = 0;
+    int ref_inc = 0;
+    std::string cigar_char;
+
+    // Process match between the read and the reference
+    if(cigar_op == BAM_CMATCH || cigar_op == BAM_CEQUAL || cigar_op == BAM_CDIFF) {
+      read_inc = read_stride;
+      ref_inc = 1;
+      cigar_char = "M";
+    } else if(cigar_op == BAM_CDEL) {
+      ref_inc = 1;
+      cigar_char = "D";
+    } else if(cigar_op == BAM_CREF_SKIP) {
+      // end the current segment and start a new one
+      ref_inc = 1;
+      cigar_char = "N";
+    } else if(cigar_op == BAM_CINS) {
+      read_inc = read_stride;
+      cigar_char = "I";
+    } else if(cigar_op == BAM_CSOFT_CLIP) {
+      cigar_char = "S";
+      read_inc = 1; // special case, do not use read_stride
+    } else if(cigar_op == BAM_CHARD_CLIP) {
+      read_inc = 0;
+      cigar_char = "";
+    } else {
+      printf("Cigar: %d\n", cigar_op);
+      assert(false && "Unhandled cigar operation");
+    }
+//    std::cout << cigar_len << cigar_char;
+    // Iterate over the pairs of aligned bases
+    for(int j = 0; j < cigar_len; ++j) {
+      // increment
+      if (read_inc == 0 and ref_inc == 1){
+        query_string += "_";
+        ref_string += ref_seq[ref_pos];
+      } else if (read_inc == 1 and ref_inc == 0){
+        query_string += this->read_sequence[read_pos];
+        ref_string += "_";
+      } else if (read_inc == 1 and ref_inc == 1){
+        query_string += this->read_sequence[read_pos];
+        ref_string += ref_seq[ref_pos];
+        if (ref_seq[ref_pos] == this->read_sequence[read_pos]){
+          cigar_char = "M";
+        } else {
+          cigar_char = "X";
+        }
+      }
+      cigar_string += cigar_char;
+      if (read_pos >= 5){
+        if (read_inc == 1){
+          RefSeqAlignment sa_record = { query_string, read_pos, ref_string, ref_pos+start_ref_pos, cigar_string};
+          sequence_to_alignment[read_pos-5] = sa_record;
+        }
+        ref_string = ref_string.substr(1);
+        query_string = query_string.substr(1);
+        cigar_string = cigar_string.substr(1);
+      }
+      read_pos += read_inc;
+      ref_pos += ref_inc;
+    }
+  }
+//  std::cout << "\n";
+}
+
 //
 void SquiggleRead::load_from_raw(fast5_file& f5_file, const uint32_t flags)
 {
@@ -365,7 +472,6 @@ void SquiggleRead::load_from_raw(fast5_file& f5_file, const uint32_t flags)
         size_t n_kmers = read_sequence.size() - this->get_model_k(strand_idx) + 1;
         this->base_to_event_map.clear();
         this->base_to_event_map.resize(n_kmers);
-
         size_t max_event = 0;
         size_t min_event = std::numeric_limits<size_t>::max();
 
@@ -1036,13 +1142,16 @@ std::vector<EventAlignment> SquiggleRead::get_eventalignment_for_1d_basecalls(co
                                                                               const std::vector<EventRangeForBase>& base_to_event_map_1d,
                                                                               const size_t k,
                                                                               const size_t strand_idx,
-                                                                              const int shift_offset) const
+                                                                              const int shift_offset)
 {
     std::vector<EventAlignment> alignment;
 
     const Alphabet* alphabet = get_alphabet_by_name(alphabet_name);
     size_t n_kmers = read_sequence_1d.size() - k + 1;
     size_t prev_kmer_rank = -1;
+    IndexPair back = base_to_event_map_1d.back().indices[strand_idx];
+    this->event_to_base_map.clear();
+    this->event_to_base_map.resize(back.stop);
 
     for(int ki = 0; ki < n_kmers; ++ki) {
         IndexPair event_range_for_kmer = base_to_event_map_1d[ki].indices[strand_idx];
@@ -1059,7 +1168,9 @@ std::vector<EventAlignment> SquiggleRead::get_eventalignment_for_1d_basecalls(co
         for(size_t event_idx = event_range_for_kmer.start;
             event_idx <= event_range_for_kmer.stop; event_idx++)
         {
-            assert(event_idx < this->events[strand_idx].size());
+          this->event_to_base_map[event_idx] = ki;
+
+          assert(event_idx < this->events[strand_idx].size());
 
             // since we use the 1D read seqence here we never have to reverse complement
             std::string kmer = read_sequence_1d.substr(ki + shift_offset, k);
@@ -1080,7 +1191,6 @@ std::vector<EventAlignment> SquiggleRead::get_eventalignment_for_1d_basecalls(co
             prev_kmer_rank = kmer_rank;
         }
     }
-
     return alignment;
 }
 

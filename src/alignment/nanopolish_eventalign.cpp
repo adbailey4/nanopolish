@@ -233,6 +233,7 @@ void emit_tsv_header(FILE* fp)
             (not opt::print_read_names? "read_index" : "read_name"), "strand");
     fprintf(fp, "%s\t%s\t%s\t%s\t", "event_index", "event_level_mean", "event_stdv", "event_length");
     fprintf(fp, "%s\t%s\t%s\t%s", "model_kmer", "model_mean", "model_stdv", "standardized_level");
+    fprintf(fp, "%s\t%s\t%s", "basecalled_kmer", "cigar_string", "reference_kmer");
 
     if(opt::write_signal_index) {
         fprintf(fp, "\t%s\t%s", "start_idx", "end_idx");
@@ -405,6 +406,7 @@ void emit_event_alignment_tsv(FILE* fp,
                               const std::vector<EventAlignment>& alignments)
 {
     assert(params.alphabet == "");
+
     const PoreModel* pore_model = params.get_model();
     uint32_t k = pore_model->k;
     for(size_t i = 0; i < alignments.size(); ++i) {
@@ -466,6 +468,11 @@ void emit_event_alignment_tsv(FILE* fp,
                                                model_mean,
                                                model_stdv,
                                                standard_level);
+        size_t base = sr.event_to_base_map[ea.event_idx];
+        RefSeqAlignment ref_seq_alignment = sr.sequence_to_alignment[base];
+
+        fprintf(fp, "\t%s\t%s\t%s", ref_seq_alignment.query.c_str(), ref_seq_alignment.cigar.c_str(),
+            ref_seq_alignment.ref.c_str());
 
         if(opt::write_signal_index) {
             std::pair<size_t, size_t> signal_idx = sr.get_event_sample_idx(ea.strand_idx, ea.event_idx);
@@ -594,7 +601,7 @@ void realign_read(const ReadDB& read_db,
         }
 
         // write to disk
-        #pragma omp critical
+//        #pragma omp critical
         {
             if(opt::output_sam) {
                 emit_event_alignment_sam(writer.sam_fp, sr, hdr, record, alignment);
@@ -635,7 +642,7 @@ std::vector<EventAlignment> align_read_to_ref(const EventAlignmentParameters& pa
     std::string ref_name(params.hdr->target_name[params.record->core.tid]);
     std::string ref_seq = get_reference_region_ts(params.fai, ref_name.c_str(), ref_offset,
                                                   bam_endpos(params.record), &fetched_len);
-
+//    std::cout << ref_name.c_str() << "\t" << ref_offset << "\t" << bam_endpos(params.record) << "\t" << fetched_len << "\n";
     // convert to upper case
     std::transform(ref_seq.begin(), ref_seq.end(), ref_seq.begin(), ::toupper);
 
@@ -654,6 +661,7 @@ std::vector<EventAlignment> align_read_to_ref(const EventAlignmentParameters& pa
 
     // Get the read-to-reference aligned segments
     std::vector<AlignedSegment> aligned_segments = get_aligned_segments(params.record);
+    params.sr->load_cigar(params.record, ref_seq, pore_model);
     for(size_t segment_idx = 0; segment_idx < aligned_segments.size(); ++segment_idx) {
 
         AlignedSegment& aligned_pairs = aligned_segments[segment_idx];

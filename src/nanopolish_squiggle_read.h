@@ -58,6 +58,16 @@ struct SquiggleEvent
     float log_stdv;    // precompute for efficiency
 };
 
+
+struct RefSeqAlignment
+{
+  std::string query;
+  int query_index;
+  std::string ref;
+  int ref_index;
+  std::string cigar;
+};
+
 // Scaling parameters to account for per-read variations from the model
 struct SquiggleScalings
 {
@@ -102,7 +112,7 @@ struct IndexPair
 // events used to call it.
 struct EventRangeForBase
 {
-    IndexPair indices[2]; // one per strand
+  IndexPair indices[2]; // one per strand
 };
 
 //
@@ -240,7 +250,7 @@ class SquiggleRead
                                                                         const std::vector<EventRangeForBase>& base_to_event_map_1d,
                                                                         const size_t k,
                                                                         const size_t strand_idx,
-                                                                        const int label_shift) const;
+                                                                        const int label_shift);
 
         // Sample-level access
         size_t get_sample_index_at_time(size_t sample_time) const;
@@ -289,6 +299,11 @@ class SquiggleRead
 
         //
         std::vector<EventRangeForBase> base_to_event_map;
+        std::vector<size_t> event_to_base_map;
+        std::vector<std::string> base_to_cigar_map;
+        std::vector<RefSeqAlignment> sequence_to_alignment;
+
+        void load_cigar(const bam1_t* record, std::string ref_seq, const PoreModel* pore_model, int read_stride = 1);
 
         // one set of parameters per strand
         TransitionParameters parameters[2];
