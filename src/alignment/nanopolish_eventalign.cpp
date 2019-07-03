@@ -233,7 +233,7 @@ void emit_tsv_header(FILE* fp)
             (not opt::print_read_names? "read_index" : "read_name"), "strand");
     fprintf(fp, "%s\t%s\t%s\t%s\t", "event_index", "event_level_mean", "event_stdv", "event_length");
     fprintf(fp, "%s\t%s\t%s\t%s", "model_kmer", "model_mean", "model_stdv", "standardized_level");
-    fprintf(fp, "%s\t%s\t%s", "basecalled_kmer", "cigar_string", "reference_kmer");
+    fprintf(fp, "\t%s\t%s\t%s", "basecalled_kmer", "cigar_string", "reference_kmer");
 
     if(opt::write_signal_index) {
         fprintf(fp, "\t%s\t%s", "start_idx", "end_idx");
@@ -661,7 +661,12 @@ std::vector<EventAlignment> align_read_to_ref(const EventAlignmentParameters& pa
 
     // Get the read-to-reference aligned segments
     std::vector<AlignedSegment> aligned_segments = get_aligned_segments(params.record);
-    params.sr->load_cigar(params.record, ref_seq, pore_model);
+    if (bam_is_rev(params.record)){
+      params.sr->load_cigar(params.record, rc_ref_seq);
+    } else {
+      params.sr->load_cigar(params.record, ref_seq);
+    }
+
     for(size_t segment_idx = 0; segment_idx < aligned_segments.size(); ++segment_idx) {
 
         AlignedSegment& aligned_pairs = aligned_segments[segment_idx];

@@ -300,10 +300,9 @@ class SquiggleRead
         //
         std::vector<EventRangeForBase> base_to_event_map;
         std::vector<size_t> event_to_base_map;
-        std::vector<std::string> base_to_cigar_map;
         std::vector<RefSeqAlignment> sequence_to_alignment;
 
-        void load_cigar(const bam1_t* record, std::string ref_seq, const PoreModel* pore_model, int read_stride = 1);
+        void load_cigar(const bam1_t* record, std::string ref_seq, int read_stride = 1);
 
         // one set of parameters per strand
         TransitionParameters parameters[2];

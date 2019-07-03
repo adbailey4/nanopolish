@@ -273,7 +273,7 @@ void SquiggleRead::load_from_events(const uint32_t flags)
 }
 
 
-void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, const PoreModel* pore_model, int read_stride){
+void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int read_stride){
   // This code is derived from bam_fillmd1_core
   //uint8_t *ref = NULL;
   //uint8_t *seq = bam_get_seq(record);
@@ -285,10 +285,9 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, const P
 
 //  seq_align_record.sequence;
 //  this->read_sequence;
-  sequence_to_alignment.resize(query_sequence.length());
-  bool reversed = bam_is_rev(record);
+  this->sequence_to_alignment.resize(query_sequence.length());
+  bool reversed = (bool)bam_is_rev(record);
   if (reversed){
-    ref_seq = pore_model->pmalphabet->reverse_complement(ref_seq);
     ref_pos = 1;
   }
 //  std::cout << read_name << "\n";
@@ -364,7 +363,7 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, const P
       if (read_pos >= 5){
         if (read_inc == 1){
           RefSeqAlignment sa_record = { query_string, read_pos, ref_string, ref_pos+start_ref_pos, cigar_string};
-          sequence_to_alignment[read_pos-5] = sa_record;
+          this->sequence_to_alignment[read_pos-5] = sa_record;
         }
         ref_string = ref_string.substr(1);
         query_string = query_string.substr(1);
@@ -374,7 +373,6 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, const P
       ref_pos += ref_inc;
     }
   }
-//  std::cout << "\n";
 }
 
 //
