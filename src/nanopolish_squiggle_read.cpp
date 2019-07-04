@@ -1149,9 +1149,16 @@ std::vector<EventAlignment> SquiggleRead::get_eventalignment_for_1d_basecalls(co
     const Alphabet* alphabet = get_alphabet_by_name(alphabet_name);
     size_t n_kmers = read_sequence_1d.size() - k + 1;
     size_t prev_kmer_rank = -1;
-    IndexPair back = base_to_event_map_1d.back().indices[strand_idx];
+    int num_events = 0;
+    int event = 0;
+    for (auto event_range: base_to_event_map_1d){
+      event = event_range.indices[strand_idx].stop;
+      if (num_events < event){
+        num_events = event;
+      }
+    }
     this->event_to_base_map.clear();
-    this->event_to_base_map.resize(back.stop);
+    this->event_to_base_map.resize(num_events);
 
     for(int ki = 0; ki < n_kmers; ++ki) {
         IndexPair event_range_for_kmer = base_to_event_map_1d[ki].indices[strand_idx];

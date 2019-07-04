@@ -556,6 +556,7 @@ void realign_read(const ReadDB& read_db,
                   int region_end)
 {
     // Load a squiggle read for the mapped read
+
     std::string read_name = bam_get_qname(record);
 
     // load read
@@ -571,9 +572,15 @@ void realign_read(const ReadDB& read_db,
         fprintf(stderr, "Realigning %s [%zu %zu]\n",
                 read_name.c_str(), sr.events[0].size(), sr.events[1].size());
     }
-    std::string path = writer.tsv_fp + "/" + read_name + ".tsv";
-    FILE* file_handle = fopen(path.c_str(), "w");
-    emit_tsv_header(file_handle);
+    bool close = FALSE;
+    FILE* file_handle;
+      // Do not align this strand if it was not sequenced
+    if(sr.has_events_for_strand(0) or sr.has_events_for_strand(1)) {
+      std::string path = writer.tsv_fp + "/" + read_name + ".tsv";
+      file_handle = fopen(path.c_str(), "w");
+      emit_tsv_header(file_handle);
+      close = TRUE;
+    }
 
     for(int strand_idx = 0; strand_idx < 2; ++strand_idx) {
 
@@ -620,7 +627,9 @@ void realign_read(const ReadDB& read_db,
             }
         }
     }
-    fclose(file_handle);
+    if (close){
+      fclose(file_handle);
+    }
 }
 
 std::vector<EventAlignment> align_read_to_ref(const EventAlignmentParameters& params)
