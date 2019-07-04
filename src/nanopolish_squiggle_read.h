@@ -299,9 +299,10 @@ class SquiggleRead
 
         //
         std::vector<EventRangeForBase> base_to_event_map;
-        std::vector<size_t> event_to_base_map;
-        std::vector<RefSeqAlignment> sequence_to_alignment;
 
+//        These are new for output_cigar
+        std::vector<int> event_to_base_map;
+        std::vector<RefSeqAlignment> sequence_to_alignment;
         void load_cigar(const bam1_t* record, std::string ref_seq, int read_stride = 1);
 
         // one set of parameters per strand

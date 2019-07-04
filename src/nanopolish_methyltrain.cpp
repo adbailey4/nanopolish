@@ -208,7 +208,8 @@ bool recalibrate_model(SquiggleRead &sr,
                        const bool scale_var,
                        const bool scale_drift)
 {
-    std::vector<double> raw_events, times, level_means, level_stdvs;
+    std::vector<double> level_means, level_stdvs;
+    std::vector<float> raw_events, times;
     uint32_t k = pore_model.k;
     const uint32_t num_equations = scale_drift ? 3 : 2;
 

@@ -275,24 +275,19 @@ void SquiggleRead::load_from_events(const uint32_t flags)
 
 void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int read_stride){
   // This code is derived from bam_fillmd1_core
-  //uint8_t *ref = NULL;
-  //uint8_t *seq = bam_get_seq(record);
   uint32_t *cigar = bam_get_cigar(record);
   const bam1_core_t *c = &record->core;
-  std::string query_sequence = this->read_sequence;
+
   int read_pos = 0;
   int ref_pos = 0;
   int ref_seq_length = ref_seq.length();
 //  seq_align_record.sequence;
 //  this->read_sequence;
-  this->sequence_to_alignment.resize(query_sequence.length());
+  this->sequence_to_alignment.resize(this->read_sequence.length()+1);
   bool reversed = (bool)bam_is_rev(record);
   if (reversed){
     ref_pos = 1;
   }
-//  std::cout << read_name << "\n";
-//  std::cout << query_sequence << "\n";
-//  std::cout << ref_seq << "\n";
 
 
   int start_ref_pos = c->pos;
@@ -300,6 +295,7 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int rea
   std::string query_string;
   std::string ref_string;
   int real_index;
+  std::string cigar_char;
 
   for (int ci = 0; ci < c->n_cigar; ++ci) {
     if (reversed) {
@@ -313,7 +309,6 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int rea
     // based on the cigar operation
     int read_inc = 0;
     int ref_inc = 0;
-    std::string cigar_char;
 
     // Process match between the read and the reference
     if(cigar_op == BAM_CMATCH || cigar_op == BAM_CEQUAL || cigar_op == BAM_CDIFF) {
@@ -335,7 +330,7 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int rea
       read_inc = 1; // special case, do not use read_stride
     } else if(cigar_op == BAM_CHARD_CLIP) {
       read_inc = 0;
-      cigar_char = "";
+      cigar_char = "H";
     } else {
       printf("Cigar: %d\n", cigar_op);
       assert(false && "Unhandled cigar operation");
@@ -345,7 +340,7 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int rea
     for(int j = 0; j < cigar_len; ++j) {
       // increment
       if (ref_pos >= ref_seq_length){
-        ref_pos -= 1;
+        ref_pos = ref_seq_length-1;
       }
       if (read_inc == 0 and ref_inc == 1){
         query_string += "_";
@@ -364,11 +359,13 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int rea
       }
       cigar_string += cigar_char;
       if (read_pos >= 5){
-        if (read_inc == 1){
+        if (cigar_char != "H"){
+                  if (read_inc == 1){
           this->sequence_to_alignment[read_pos-5] = { query_string, read_pos, ref_string, ref_pos+start_ref_pos, cigar_string};
         }
-        ref_string = ref_string.substr(1);
-        query_string = query_string.substr(1);
+          ref_string = ref_string.substr(1);
+          query_string = query_string.substr(1);
+        }
         cigar_string = cigar_string.substr(1);
       }
       read_pos += read_inc;
@@ -1158,7 +1155,7 @@ std::vector<EventAlignment> SquiggleRead::get_eventalignment_for_1d_basecalls(co
       }
     }
     this->event_to_base_map.clear();
-    this->event_to_base_map.resize(num_events);
+    this->event_to_base_map.resize(num_events+1);
 
     for(int ki = 0; ki < n_kmers; ++ki) {
         IndexPair event_range_for_kmer = base_to_event_map_1d[ki].indices[strand_idx];

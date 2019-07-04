@@ -468,7 +468,7 @@ void emit_event_alignment_tsv(FILE* fp,
                                                model_mean,
                                                model_stdv,
                                                standard_level);
-        size_t base = sr.event_to_base_map[ea.event_idx];
+        int base = sr.event_to_base_map[ea.event_idx];
         RefSeqAlignment ref_seq_alignment = sr.sequence_to_alignment[base];
 
         fprintf(fp, "\t%s\t%s\t%s", ref_seq_alignment.query.c_str(), ref_seq_alignment.cigar.c_str(),
@@ -599,7 +599,7 @@ void realign_read(const ReadDB& read_db,
         params.read_idx = read_idx;
         params.region_start = region_start;
         params.region_end = region_end;
-
+//        std::cout << read_name << "\n";
         std::vector<EventAlignment> alignment = align_read_to_ref(params);
 
         EventalignSummary summary;
