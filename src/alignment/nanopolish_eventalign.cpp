@@ -72,6 +72,7 @@ static const char *EVENTALIGN_USAGE_MESSAGE =
 "      --samples                        write the raw samples for the event to the tsv output\n"
 "      --signal-index                   write the raw signal start and end index values for the event to the tsv output\n"
 "      --models-fofn=FILE               read alternative k-mer models from FILE\n"
+"      --cigar_output                   output original cigar information for each event\n"
 "\nReport bugs to " PACKAGE_BUGREPORT "\n\n";
 
 namespace opt
@@ -91,12 +92,12 @@ namespace opt
     static int batch_size = 512;
     static int min_mapping_quality = 0;
     static bool print_read_names;
-    static bool full_output;
     static bool write_samples = false;
     static bool write_signal_index = false;
+    static bool cigar_output = false;
 }
 
-static const char* shortopts = "r:b:g:t:w:q:o:vn";
+static const char* shortopts = "r:b:g:t:w:q:o:c:vn";
 
 enum { OPT_HELP = 1, OPT_VERSION, OPT_PROGRESS, OPT_SAM, OPT_SUMMARY, OPT_SCALE_EVENTS, OPT_MODELS_FOFN, OPT_SAMPLES, OPT_SIGNAL_INDEX };
 
@@ -112,6 +113,7 @@ static const struct option longopts[] = {
     { "summary",             required_argument, NULL, OPT_SUMMARY },
     { "models-fofn",         required_argument, NULL, OPT_MODELS_FOFN },
     { "print-read-names",    no_argument,       NULL, 'n' },
+    { "cigar_output",        no_argument,       NULL, 'c' },
     { "samples",             no_argument,       NULL, OPT_SAMPLES },
     { "signal-index",        no_argument,       NULL, OPT_SIGNAL_INDEX },
     { "scale-events",        no_argument,       NULL, OPT_SCALE_EVENTS },
@@ -233,8 +235,10 @@ void emit_tsv_header(FILE* fp)
             (not opt::print_read_names? "read_index" : "read_name"), "strand");
     fprintf(fp, "%s\t%s\t%s\t%s\t", "event_index", "event_level_mean", "event_stdv", "event_length");
     fprintf(fp, "%s\t%s\t%s\t%s", "model_kmer", "model_mean", "model_stdv", "standardized_level");
-    fprintf(fp, "\t%s\t%s\t%s", "basecalled_kmer", "cigar_string", "reference_kmer");
 
+    if (opt::cigar_output){
+      fprintf(fp, "\t%s\t%s\t%s", "basecalled_kmer", "cigar_string", "reference_kmer");
+    }
     if(opt::write_signal_index) {
         fprintf(fp, "\t%s\t%s", "start_idx", "end_idx");
     }
@@ -468,12 +472,12 @@ void emit_event_alignment_tsv(FILE* fp,
                                                model_mean,
                                                model_stdv,
                                                standard_level);
-        int base = sr.event_to_base_map[ea.event_idx];
-        RefSeqAlignment ref_seq_alignment = sr.sequence_to_alignment[base];
-
-        fprintf(fp, "\t%s\t%s\t%s", ref_seq_alignment.query.c_str(), ref_seq_alignment.cigar.c_str(),
-            ref_seq_alignment.ref.c_str());
-
+        if (opt::cigar_output) {
+          int base = sr.event_to_base_map[ea.event_idx];
+          RefSeqAlignment ref_seq_alignment = sr.sequence_to_alignment[base];
+          fprintf(fp, "\t%s\t%s\t%s", ref_seq_alignment.query.c_str(), ref_seq_alignment.cigar.c_str(),
+                  ref_seq_alignment.ref.c_str());
+        }
         if(opt::write_signal_index) {
             std::pair<size_t, size_t> signal_idx = sr.get_event_sample_idx(ea.strand_idx, ea.event_idx);
             fprintf(fp, "\t%zu\t%zu", signal_idx.first, signal_idx.second);
@@ -670,10 +674,13 @@ std::vector<EventAlignment> align_read_to_ref(const EventAlignmentParameters& pa
 
     // Get the read-to-reference aligned segments
     std::vector<AlignedSegment> aligned_segments = get_aligned_segments(params.record);
-    if (bam_is_rev(params.record)){
-      params.sr->load_cigar(params.record, rc_ref_seq);
-    } else {
-      params.sr->load_cigar(params.record, ref_seq);
+
+    if (opt::cigar_output) {
+      if (bam_is_rev(params.record)) {
+        params.sr->load_cigar(params.record, rc_ref_seq);
+      } else {
+        params.sr->load_cigar(params.record, ref_seq);
+      }
     }
 
     for(size_t segment_idx = 0; segment_idx < aligned_segments.size(); ++segment_idx) {
@@ -869,7 +876,7 @@ void parse_eventalign_options(int argc, char** argv)
             case 't': arg >> opt::num_threads; break;
             case 'q': arg >> opt::min_mapping_quality; break;
             case 'n': opt::print_read_names = true; break;
-            case 'f': opt::full_output = true; break;
+            case 'c': opt::cigar_output = true; break;
             case OPT_SIGNAL_INDEX: opt::write_signal_index = true; break;
             case OPT_SAMPLES: opt::write_samples = true; break;
             case 'v': opt::verbose++; break;

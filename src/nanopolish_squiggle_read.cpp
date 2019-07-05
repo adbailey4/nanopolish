@@ -360,9 +360,9 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int rea
       cigar_string += cigar_char;
       if (read_pos >= 5){
         if (cigar_char != "H"){
-                  if (read_inc == 1){
-          this->sequence_to_alignment[read_pos-5] = { query_string, read_pos, ref_string, ref_pos+start_ref_pos, cigar_string};
-        }
+          if (read_inc == 1){
+            this->sequence_to_alignment[read_pos-5] = { query_string, read_pos, ref_string, ref_pos+start_ref_pos, cigar_string};
+          }
           ref_string = ref_string.substr(1);
           query_string = query_string.substr(1);
         }
