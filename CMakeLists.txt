@@ -17,13 +17,9 @@ message(EIGEN3_INCLUDE_DIR: "${EIGEN3_INCLUDE_DIR}")
 include_directories(${EIGEN3_INCLUDE_DIR})
 
 
-#set(EIGEN_HOME "none" CACHE STRING "Some user-specified option")
-#set(EIGEN_HOME "none" CACHE STRING "Some user-specified option")
 include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/fast5/include)
-#include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(/usr/local/include)
-#include_directories(/usr/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/alignment)
 include_directories(${CMAKE_SOURCE_DIR}/src/common)
 include_directories(${CMAKE_SOURCE_DIR}/src/hmm)
@@ -35,63 +31,11 @@ include_directories(${CMAKE_SOURCE_DIR}/src/thirdparty/scrappie)
 
 link_directories(/usr/local/lib)
 
-#link_directories(${CMAKE_SOURCE_DIR}/lib)
-
-
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(NP_LIBRARY -lz -lm -lhts -ldl -lpthread -lhdf5)
 
 
-#add_custom_command(
-#        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/src/main/nanopolish.o
-#        COMMAND make
-#        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/nanopolish/
-#)
-
-set(object_files
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_call_variants.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_call_methylation.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_extract.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_getmodel.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_haplotype.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_index.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_methyltrain.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_phase_reads.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_raw_loader.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_read_db.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_variant_db.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_vcf2fasta.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_train_poremodel_from_basecalls.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_squiggle_read.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_scorereads.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm/nanopolish_duration_model.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm/nanopolish_profile_hmm.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm/nanopolish_profile_hmm_r7.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm/nanopolish_profile_hmm_r9.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm/nanopolish_transition_parameters.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/fs_support.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/logsum.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_alphabet.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_bam_processor.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_bam_utils.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_common.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_fast5_io.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_iupac.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_klcs.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_variant.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/alignment/nanopolish_alignment_db.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/alignment/nanopolish_anchor.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/alignment/nanopolish_eventalign.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model/nanopolish_poremodel.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model/nanopolish_pore_model_set.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model/nanopolish_model_names.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/training_core.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_polya_estimator.o
-#        ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie/util.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie/scrappie_common.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie/event_detection.o
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/stdaln.o)
 
 set(non_object_files
         ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_call_variants.cpp
@@ -132,17 +76,9 @@ set(non_object_files
         ${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model/nanopolish_pore_model_set.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model/nanopolish_model_names.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/training_core.cpp
-#        ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie/util.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie/scrappie_common.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie/event_detection.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/stdaln.c)
-
-#add_library(nanopolish_object_files STATIC ${non_object_files})
-
-
-#add_custom_target(
-#        nanopolish_o
-#        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/main/nanopolish.o)
 
 
 set(NANOPOLISH
@@ -163,4 +99,3 @@ add_executable(nanopolish ${NANOPOLISH} ${non_object_files})
 
 target_link_libraries(nanopolish ${NP_LIBRARY}) #${nanopolish_object_files}
 
-# bwa mem -x ont2d ~/data/references/ecoli/ecoli_k12_mg1655.fa dnacanonical.fa | samtools sort -o dnacanonical.sorted.bam -T reads.tmp | samtools index dnacanonical.sorted.bam
