@@ -237,7 +237,7 @@ void emit_tsv_header(FILE* fp)
     fprintf(fp, "%s\t%s\t%s\t%s", "model_kmer", "model_mean", "model_stdv", "standardized_level");
 
     if (opt::cigar_output){
-      fprintf(fp, "\t%s\t%s\t%s", "basecalled_kmer", "cigar_string", "reference_kmer");
+      fprintf(fp, "\t%s\t%s\t%s\t%s", "basecalled_kmer", "cigar_string", "reference_kmer", "basecall_index");
     }
     if(opt::write_signal_index) {
         fprintf(fp, "\t%s\t%s", "start_idx", "end_idx");
@@ -475,8 +475,8 @@ void emit_event_alignment_tsv(FILE* fp,
         if (opt::cigar_output) {
           int base = sr.event_to_base_map[ea.event_idx];
           RefSeqAlignment ref_seq_alignment = sr.sequence_to_alignment[base];
-          fprintf(fp, "\t%s\t%s\t%s", ref_seq_alignment.query.c_str(), ref_seq_alignment.cigar.c_str(),
-                  ref_seq_alignment.ref.c_str());
+          fprintf(fp, "\t%s\t%s\t%s\t%i", ref_seq_alignment.query.c_str(), ref_seq_alignment.cigar.c_str(),
+                  ref_seq_alignment.ref.c_str(), base);
         }
         if(opt::write_signal_index) {
             std::pair<size_t, size_t> signal_idx = sr.get_event_sample_idx(ea.strand_idx, ea.event_idx);
