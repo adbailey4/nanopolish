@@ -278,6 +278,8 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int rea
   uint32_t *cigar = bam_get_cigar(record);
   const bam1_core_t *c = &record->core;
 
+  uint32_t k = this->base_model[0]->k;
+
   int read_pos = 0;
   int ref_pos = 0;
   int ref_seq_length = ref_seq.length();
@@ -358,10 +360,13 @@ void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int rea
         }
       }
       cigar_string += cigar_char;
-      if (read_pos >= 5){
+      if (read_pos >= (k-1)){
         if (cigar_char != "H"){
           if (read_inc == 1){
-            this->sequence_to_alignment[read_pos-5] = { query_string, read_pos, ref_string, ref_pos+start_ref_pos, cigar_string};
+            this->sequence_to_alignment[read_pos-(k-1)] = { query_string.substr(query_string.size() - k), read_pos,
+                                                            ref_string.substr(ref_string.size() - k),
+                                                            ref_pos+start_ref_pos,
+                                                            cigar_string.substr(cigar_string.size() - k)};
           }
           ref_string = ref_string.substr(1);
           query_string = query_string.substr(1);

@@ -476,7 +476,7 @@ void emit_event_alignment_tsv(FILE* fp,
           int base = sr.event_to_base_map[ea.event_idx];
           RefSeqAlignment ref_seq_alignment = sr.sequence_to_alignment[base];
           fprintf(fp, "\t%s\t%s\t%s\t%i", ref_seq_alignment.query.c_str(), ref_seq_alignment.cigar.c_str(),
-                  ref_seq_alignment.ref.c_str(), base);
+                  ref_seq_alignment.ref.c_str(), ref_seq_alignment.query_index);
         }
         if(opt::write_signal_index) {
             std::pair<size_t, size_t> signal_idx = sr.get_event_sample_idx(ea.strand_idx, ea.event_idx);
