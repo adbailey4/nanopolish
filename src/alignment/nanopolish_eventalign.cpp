@@ -237,7 +237,7 @@ void emit_tsv_header(FILE* fp)
     fprintf(fp, "%s\t%s\t%s\t%s", "model_kmer", "model_mean", "model_stdv", "standardized_level");
 
     if (opt::cigar_output){
-      fprintf(fp, "\t%s\t%s\t%s\t%s", "basecalled_kmer", "cigar_string", "reference_kmer", "basecall_index");
+      fprintf(fp, "\t%s\t%s\t%s\t%s", "cigar_basecalled_kmer", "cigar_string", "cigar_ref_kmer", "basecall_index");
     }
     if(opt::write_signal_index) {
         fprintf(fp, "\t%s\t%s", "start_idx", "end_idx");
