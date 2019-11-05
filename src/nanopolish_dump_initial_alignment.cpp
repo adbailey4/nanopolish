@@ -68,16 +68,16 @@ namespace opt
     static int num_threads = 1;
 }
 
-static const char* shortopts = "r:t:v";
+static const char* shortopts = "r:t:v:o:";
 
-enum { OPT_HELP = 1, OPT_VERSION, OPT_PROGRESS };
+enum { OPT_HELP = 1, OPT_VERSION, OPT_PROGRESS, OPT_SCALE};
 
 static const struct option longopts[] = {
     { "verbose",             no_argument,       NULL, 'v' },
     { "reads",               required_argument, NULL, 'r' },
     { "threads",             required_argument, NULL, 't' },
-    { "threads",             required_argument, NULL, 't' },
-    { "threads",             required_argument, NULL, 't' },
+    { "scale-events",        no_argument,       NULL, OPT_SCALE },
+    { "output-dir",          required_argument, NULL, 'o' },
     { "help",                no_argument,       NULL, OPT_HELP },
     { "version",             no_argument,       NULL, OPT_VERSION },
     { NULL, 0, NULL, 0 }
@@ -92,6 +92,8 @@ void parse_dumpalignment_options(int argc, char** argv)
             case 'r': arg >> opt::reads_file; break;
             case '?': die = true; break;
             case 't': arg >> opt::num_threads; break;
+            case 'o': arg >> opt::output_dir; break;
+            case OPT_SCALE: opt::scale_events = true; break;
             case OPT_HELP:
                 std::cout << DUMPALIGNMENT_USAGE_MESSAGE;
                 exit(EXIT_SUCCESS);
@@ -159,6 +161,12 @@ int dumpalignment_main(int argc, char** argv)
                 event_to_base_map[j] = i;
             }
         }
+        FILE* file_handle;
+        // Do not align this strand if it was not sequenced
+        std::string path = opt::output_dir + "/" + seq->name.s + ".tsv";
+        file_handle = fopen(path.c_str(), "w");
+        fprintf(file_handle, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", "event_index", "base_index", "strand_index", "event_mean", "event_stdv",
+            "raw_start", "raw_length", "kmer");
 
         int k = 6;
         int prev_idx = 0;
@@ -170,11 +178,37 @@ int dumpalignment_main(int argc, char** argv)
                 base_idx = event_to_base_map[i];
                 kmer = sr.read_sequence.substr(base_idx, k);
             }
+            // event information
+            float event_mean = sr.get_unscaled_level(i, strand_idx);
+            float event_stdv = sr.get_stdv(i, strand_idx);
+//            uint32_t rank = pore_model->pmalphabet->kmer_rank(ea.model_kmer.c_str(), k);
+//            float model_mean = 0.0;
+//            float model_stdv = 0.0;
 
-            fprintf(stdout, "%zu\t%d\t%d\t%.6lf\t%.6lf\t%.6lf\t%.6lf\t%s\n", i, base_idx, 0, sr.get_unscaled_level(i, strand_idx),
-                                                                             sr.get_stdv(i, strand_idx), (float)sample_range.first,
-                                                                             (float)(sample_range.second - sample_range.first), kmer.c_str());
+            if(opt::scale_events) {
+
+              // scale reads to the model
+              event_mean = sr.get_fully_scaled_level(i, strand_idx);
+
+              // unscaled model parameters
+//              if(ea.hmm_state != 'B') {
+//                PoreModelStateParams model = pore_model->get_parameters(rank);
+//                model_mean = model.level_mean;
+//                model_stdv = model.level_stdv;
+//              }
+            } //else {
+
+              // scale model to the reads
+//              if(ea.hmm_state != 'B') {
+//                GaussianParameters model = sr.get_scaled_gaussian_from_pore_model_state(*pore_model, ea.strand_idx, rank);
+//                model_mean = model.mean;
+//                model_stdv = model.stdv;
+//              }
+//            }
+            fprintf(file_handle, "%zu\t%d\t%d\t%.6lf\t%.6lf\t%.6lf\t%.6lf\t%s\n", i, base_idx, 0, event_mean,
+                    event_stdv, (float)sample_range.first, (float)(sample_range.second - sample_range.first), kmer.c_str());
         }
+        fclose(file_handle);
     }
 
     return EXIT_SUCCESS;
