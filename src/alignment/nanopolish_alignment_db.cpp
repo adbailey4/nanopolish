@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <algorithm>
 #include "nanopolish_alignment_db.h"
+#include "progress.h"
 #include "htslib/faidx.h"
 #include "htslib/hts.h"
 #include "htslib/sam.h"
@@ -102,7 +103,11 @@ AlignmentDB::AlignmentDB(const std::string& reads_file,
                             m_sequence_bam(sequence_bam),
                             m_event_bam(event_bam)
 {
+    Progress timer("readdb timer");
     m_read_db.load(reads_file);
+
+    fprintf(stderr, "[alignmentdb] loaded .readdb file in %.2lfs\n", timer.get_elapsed_seconds());
+
     _clear_region();
 }
 
@@ -474,6 +479,7 @@ std::vector<SequenceAlignmentRecord> AlignmentDB::_load_sequence_by_region(const
     assert(!m_region_contig.empty());
     assert(m_region_start >= 0);
     assert(m_region_end >= 0);
+    Progress timer("sequence loader");
 
     BamHandles handles = _initialize_bam_itr(sequence_bam, m_region_contig, m_region_start, m_region_end);
     std::vector<SequenceAlignmentRecord> records;
@@ -489,11 +495,13 @@ std::vector<SequenceAlignmentRecord> AlignmentDB::_load_sequence_by_region(const
         records.emplace_back(handles.bam_record);
     }
 
+    fprintf(stderr, "[alignmentdb] loaded %d base-space reads in %.2lfs\n", records.size(), timer.get_elapsed_seconds());
+
     // cleanup
     sam_itr_destroy(handles.itr);
     bam_destroy1(handles.bam_record);
     sam_close(handles.bam_fh);
-    
+
     return records;
 }
 
@@ -508,7 +516,7 @@ std::vector<EventAlignmentRecord> AlignmentDB::_load_events_by_region_from_bam(c
         EventAlignmentRecord event_record;
 
         std::string full_name = bam_get_qname(handles.bam_record);
-        
+
         // Check for the template/complement suffix
         bool is_template = true;
         size_t suffix_pos = 0;
@@ -560,6 +568,7 @@ std::vector<EventAlignmentRecord> AlignmentDB::_load_events_by_region_from_bam(c
 
 std::vector<EventAlignmentRecord> AlignmentDB::_load_events_by_region_from_read(const std::vector<SequenceAlignmentRecord>& sequence_records)
 {
+    Progress timer("sequence loader");
     std::vector<EventAlignmentRecord> records;
 
     #pragma omp parallel for
@@ -570,12 +579,12 @@ std::vector<EventAlignmentRecord> AlignmentDB::_load_events_by_region_from_read(
         _load_squiggle_read(seq_record.read_name);
 
         for(size_t si = 0; si < NUM_STRANDS; ++si) {
-            
+
             // skip complement
             if(si == C_IDX) {
                 continue;
             }
-    
+
             // skip reads that do not have events here
             SquiggleRead* sr = m_squiggle_read_map[seq_record.read_name];
             if(!sr->has_events_for_strand(si)) {
@@ -587,6 +596,7 @@ std::vector<EventAlignmentRecord> AlignmentDB::_load_events_by_region_from_read(
         }
     }
 
+    fprintf(stderr, "[alignmentdb] loaded %d signal-space reads in %.2lfs\n", records.size(), timer.get_elapsed_seconds());
     return records;
 }
 

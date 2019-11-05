@@ -21,6 +21,9 @@
 #include "nanopolish_vcf2fasta.h"
 #include "nanopolish_polya_estimator.h"
 #include "nanopolish_train_poremodel_from_basecalls.h"
+#include "nanopolish_dump_initial_alignment.h"
+#include "nanopolish_eval.h"
+#include "nanopolish_train.h"
 
 int print_usage(int argc, char **argv);
 int print_version(int argc, char **argv);
@@ -35,10 +38,13 @@ static std::map< std::string, std::function<int(int, char**)> > programs = {
     {"getmodel",    getmodel_main},
     {"variants",    call_variants_main},
     {"methyltrain", methyltrain_main},
-    {"scorereads",  scorereads_main} ,
-    {"phase-reads", phase_reads_main} ,
-    {"vcf2fasta",   vcf2fasta_main} ,
-    {"polya",  polya_main} ,
+    {"train",       train_main},
+    {"scorereads",  scorereads_main},
+    {"phase-reads", phase_reads_main},
+    {"vcf2fasta",   vcf2fasta_main},
+    {"polya",  polya_main},
+    {"dump-initial-alignment",  dumpalignment_main},
+    {"eval",  eval_main},
     {"call-methylation",  call_methylation_main}
 };
 
@@ -68,6 +74,7 @@ int main(int argc, char** argv)
 {
     // Turn off HDF's exception printing, which is generally unhelpful for users
     H5Eset_auto(0, NULL, NULL);
+    setenv("HDF5_USE_FILE_LOCKING", "FALSE", 1);
 
     int ret = 0;
     if(argc <= 1) {
