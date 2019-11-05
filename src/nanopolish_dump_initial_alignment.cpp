@@ -54,12 +54,17 @@ static const char *DUMPALIGNMENT_USAGE_MESSAGE =
 "      --help                           display this help and exit\n"
 "  -r, --reads=FILE                     the 2D ONT reads are in fasta FILE\n"
 "  -t, --threads=NUM                    use NUM threads (default: 1)\n"
+"  -o, --output-dir=NUM                 output directory \n"
+"  -s, --scale-events=NUM               option to scale events\n"
+
 "\nReport bugs to " PACKAGE_BUGREPORT "\n\n";
 
 namespace opt
 {
     static unsigned int verbose;
     static std::string reads_file;
+    static std::string output_dir;
+    static bool scale_events = false;
     static int num_threads = 1;
 }
 
@@ -70,6 +75,8 @@ enum { OPT_HELP = 1, OPT_VERSION, OPT_PROGRESS };
 static const struct option longopts[] = {
     { "verbose",             no_argument,       NULL, 'v' },
     { "reads",               required_argument, NULL, 'r' },
+    { "threads",             required_argument, NULL, 't' },
+    { "threads",             required_argument, NULL, 't' },
     { "threads",             required_argument, NULL, 't' },
     { "help",                no_argument,       NULL, OPT_HELP },
     { "version",             no_argument,       NULL, OPT_VERSION },
