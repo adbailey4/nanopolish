@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.8)
-project(nanopolish)
 
 set(CMAKE_CXX_STANDARD 11)
-SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fopenmp -fsigned-char" )
+SET(CMAKE_CXX_FLAGS "-g -Wall -std=c++11 -fopenmp -fsigned-char -DBOOST_NO_CXX11_SCOPED_ENUMS")
 SET(CMAKE_CXX_COMPILER "/usr/local/bin/g++")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -gdwarf-3")
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -gdwarf-3")
+set(CMAKE_C_FLAGS_DEBUG  "${CMAKE_C_FLAGS_DEBUG} -O0 -g -Wall --pedantic -fopenmp -funroll-loops  -DNDEBUG")
+project(nanopolish)
+set(CMAKE_VERBOSE_MAKEFILE ON)
 
 find_path(EIGEN3_INCLUDE_DIR Eigen HINTS
         ${CMAKE_INSTALL_PREFIX}/include
