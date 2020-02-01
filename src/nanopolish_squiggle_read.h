@@ -121,7 +121,7 @@ class SquiggleRead
     public:
 
         SquiggleRead() {} // legacy TODO remove
-        SquiggleRead(const std::string& name, const ReadDB& read_db, const uint32_t flags = 0);
+        SquiggleRead(const std::string& name, const ReadDB& read_db, const uint32_t flags = 0, bool rna = false);
         ~SquiggleRead();
 
         //
@@ -278,7 +278,7 @@ class SquiggleRead
         std::string fast5_path;
         uint32_t read_id;
         std::string read_sequence;
-
+        bool rna;
         // one event sequence for each strand
         std::vector<SquiggleEvent> events[2];
 

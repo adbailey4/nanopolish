@@ -68,6 +68,7 @@ static const char *EVENTALIGN_USAGE_MESSAGE =
 "      --scale-events                   scale events to the model, rather than vice-versa\n"
 "      --progress                       print out a progress message\n"
 "  -n, --print-read-names               print read names instead of indexes\n"
+"      --rna                            force to interpret reads as RNA\n"
 "      --summary=FILE                   summarize the alignment of each read/strand in FILE\n"
 "      --samples                        write the raw samples for the event to the tsv output\n"
 "      --signal-index                   write the raw signal start and end index values for the event to the tsv output\n"
@@ -92,6 +93,7 @@ namespace opt
     static int batch_size = 512;
     static int min_mapping_quality = 0;
     static bool print_read_names;
+    static bool rna = false;
     static bool write_samples = false;
     static bool write_signal_index = false;
     static bool cigar_output = false;
@@ -99,7 +101,7 @@ namespace opt
 
 static const char* shortopts = "r:b:g:t:w:q:o:c:vn";
 
-enum { OPT_HELP = 1, OPT_VERSION, OPT_PROGRESS, OPT_SAM, OPT_SUMMARY, OPT_SCALE_EVENTS, OPT_MODELS_FOFN, OPT_SAMPLES, OPT_SIGNAL_INDEX };
+enum { OPT_HELP = 1, OPT_VERSION, OPT_RNA, OPT_PROGRESS, OPT_SAM, OPT_SUMMARY, OPT_SCALE_EVENTS, OPT_MODELS_FOFN, OPT_SAMPLES, OPT_SIGNAL_INDEX };
 
 static const struct option longopts[] = {
     { "verbose",             no_argument,       NULL, 'v' },
@@ -118,6 +120,7 @@ static const struct option longopts[] = {
     { "signal-index",        no_argument,       NULL, OPT_SIGNAL_INDEX },
     { "scale-events",        no_argument,       NULL, OPT_SCALE_EVENTS },
     { "sam",                 no_argument,       NULL, OPT_SAM },
+    { "rna",                 no_argument,       NULL, OPT_RNA },
     { "progress",            no_argument,       NULL, OPT_PROGRESS },
     { "help",                no_argument,       NULL, OPT_HELP },
     { "version",             no_argument,       NULL, OPT_VERSION },
@@ -570,7 +573,7 @@ void realign_read(const ReadDB& read_db,
     } else {
         sr_flag = 0;
     }
-    SquiggleRead sr(read_name, read_db, sr_flag);
+    SquiggleRead sr(read_name, read_db, sr_flag, opt::rna);
 
     if(opt::verbose > 1) {
         fprintf(stderr, "Realigning %s [%zu %zu]\n",

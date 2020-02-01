@@ -68,10 +68,11 @@ void SquiggleScalings::set6(double _shift,
 }
 
 //
-SquiggleRead::SquiggleRead(const std::string& name, const ReadDB& read_db, const uint32_t flags) :
+SquiggleRead::SquiggleRead(const std::string& name, const ReadDB& read_db, const uint32_t flags, bool rna) :
     read_name(name),
     nucleotide_type(SRNT_DNA),
     pore_type(PT_UNKNOWN),
+    rna(rna),
     f_p(nullptr)
 {
 
@@ -93,7 +94,7 @@ SquiggleRead::SquiggleRead(const std::string& name, const ReadDB& read_db, const
 
         // Try to detect whether this read is DNA or RNA
         // Fix issue 531: experiment_type in fast5 is "rna" for cDNA kit dcs108
-        bool rna_experiment = experiment_type == "rna" || experiment_type == "internal_rna";
+        bool rna_experiment = experiment_type == "rna" || experiment_type == "internal_rna" || this->rna;
         this->nucleotide_type = rna_experiment && sequencing_kit != "sqk-dcs108" ? SRNT_RNA : SRNT_DNA;
 
         // Did this read come from nanopolish extract?
