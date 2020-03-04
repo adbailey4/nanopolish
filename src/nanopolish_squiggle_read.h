@@ -293,7 +293,9 @@ class SquiggleRead
         // one set of parameters per strand
         TransitionParameters parameters[2];
 
-    private:
+  // Load all read data from raw samples
+  void get_events(std::string& f5_path, const uint32_t flags = 0);
+ private:
         // private data
         fast5::File* f_p;
         std::string basecall_group;
@@ -306,7 +308,7 @@ class SquiggleRead
         // Load all read data from raw samples
         void load_from_raw(fast5_file& f5_file, const uint32_t flags);
 
-        // Version-specific intialization functions
+  // Version-specific intialization functions
         void _load_R7(uint32_t si);
         void _load_R9(uint32_t si,
                       const std::string& read_sequence_1d,
