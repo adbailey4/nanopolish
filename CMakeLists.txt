@@ -15,30 +15,13 @@ find_path(EIGEN3_INCLUDE_DIR Eigen HINTS
         PATH_SUFFIXES eigen3 eigen)
 
 message(EIGEN3_INCLUDE_DIR: "${EIGEN3_INCLUDE_DIR}")
-include_directories(${EIGEN3_INCLUDE_DIR})
 
-
-include_directories(${CMAKE_SOURCE_DIR}/src)
-include_directories(${CMAKE_SOURCE_DIR}/fast5/include)
-include_directories(/usr/local/include)
-include_directories(${CMAKE_SOURCE_DIR}/src/alignment)
-include_directories(${CMAKE_SOURCE_DIR}/src/common)
-include_directories(${CMAKE_SOURCE_DIR}/src/hmm)
-include_directories(${CMAKE_SOURCE_DIR}/src/main)
-include_directories(${CMAKE_SOURCE_DIR}/src/pore_model)
-include_directories(${CMAKE_SOURCE_DIR}/src/test)
-include_directories(${CMAKE_SOURCE_DIR}/src/thirdparty)
-include_directories(${CMAKE_SOURCE_DIR}/src/thirdparty/scrappie)
-
-link_directories(/usr/local/lib)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set(NP_LIBRARY -lz -lm -lhts -ldl -lpthread -lhdf5)
+set(nanopolish_DEPENDENCIES -lz -lm -lhts -ldl -lpthread -lhdf5)
 
-
-
-set(non_object_files
+set(nanopolish_SOURCE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_call_variants.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_call_methylation.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_extract.cpp
@@ -82,21 +65,29 @@ set(non_object_files
         ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/stdaln.c)
 
 
-set(NANOPOLISH
-        src/main/nanopolish.cpp)
+set(nanopolish_MAIN src/main/nanopolish.cpp)
+add_library(nanopolish_LIBRARY SHARED ${nanopolish_SOURCE})
+#install(TARGETS nanopolish_LIBRARY DESTINATION embed-install/bin)
+target_link_libraries(nanopolish_LIBRARY PUBLIC ${nanopolish_DEPENDENCIES})
 
-set(SOURCE_FILES
-        src/
-        src/hmm
-        src/common
-        src/alignment
-        src/builtin_models
-        src/main
-        src/test
-        src/thirdparty
-        src/thirdparty/scrappie)
+set_target_properties(nanopolish_LIBRARY PROPERTIES OUTPUT_NAME "nanopolish")
+set_target_properties(nanopolish_LIBRARY PROPERTIES PREFIX "")
+set_target_properties(nanopolish_LIBRARY PROPERTIES DEFINE_SYMBOL "")
 
-add_executable(nanopolish ${NANOPOLISH} ${non_object_files})
+target_include_directories(nanopolish_LIBRARY PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(nanopolish_LIBRARY PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/fast5/include)
+target_include_directories(nanopolish_LIBRARY PUBLIC /usr/local/include)
+target_include_directories(nanopolish_LIBRARY PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/alignment)
+target_include_directories(nanopolish_LIBRARY PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/common)
+target_include_directories(nanopolish_LIBRARY PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm)
+target_include_directories(nanopolish_LIBRARY PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/main)
+target_include_directories(nanopolish_LIBRARY PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model)
+target_include_directories(nanopolish_LIBRARY PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/test)
+target_include_directories(nanopolish_LIBRARY PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty)
+target_include_directories(nanopolish_LIBRARY PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie)
+target_include_directories(nanopolish_LIBRARY PUBLIC ${EIGEN3_INCLUDE_DIR})
 
-target_link_libraries(nanopolish ${NP_LIBRARY}) #${nanopolish_object_files}
+add_executable(nanopolish ${nanopolish_MAIN})
+target_link_libraries(nanopolish PUBLIC nanopolish_LIBRARY)
 
+#link_directories(/usr/local/lib)
