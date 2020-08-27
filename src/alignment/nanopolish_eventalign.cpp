@@ -888,6 +888,7 @@ void parse_eventalign_options(int argc, char** argv)
             case OPT_SUMMARY: arg >> opt::summary_file; break;
             case OPT_SAM: opt::output_sam = true; break;
             case OPT_PROGRESS: opt::progress = true; break;
+            case OPT_RNA: opt::rna = true; break;
             case OPT_HELP:
                 std::cout << EVENTALIGN_USAGE_MESSAGE;
                 exit(EXIT_SUCCESS);
