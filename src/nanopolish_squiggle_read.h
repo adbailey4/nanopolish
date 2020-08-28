@@ -307,6 +307,7 @@ class SquiggleRead
 
         // one set of parameters per strand
         TransitionParameters parameters[2];
+        void get_events(std::string& f5_path, const uint32_t flags = 0);
 
     private:
         // private data
@@ -363,6 +364,7 @@ class SquiggleRead
 
         // check basecall_group and read_type
         bool check_basecall_group() const;
+
 };
 
 #endif
