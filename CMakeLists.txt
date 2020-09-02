@@ -1,30 +1,24 @@
 cmake_minimum_required(VERSION 3.8)
-
-set(CMAKE_CXX_STANDARD 11)
-SET(CMAKE_CXX_FLAGS "-g -Wall -std=c++11 -fopenmp -fsigned-char -DBOOST_NO_CXX11_SCOPED_ENUMS")
-SET(CMAKE_CXX_COMPILER "/usr/local/bin/g++")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -gdwarf-3")
-set(CMAKE_C_FLAGS_DEBUG  "${CMAKE_C_FLAGS_DEBUG} -O0 -g -Wall --pedantic -fopenmp -funroll-loops  -DNDEBUG")
-project(nanopolish)
+project(nanopolish VERSION 0.11.1)
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
 if(EXISTS "${LOC_PATH}")
     message(FATAL_ERROR "You cannot build in a source directory (or any directory with a CMakeLists.txt file). Please make a build subdirectory. Feel free to remove CMakeCache.txt and CMakeFiles.")
 endif()
 
-set(CMAKE_VERBOSE_MAKEFILE ON)
-
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+############################################################################################################
+# Find dependencies
+############################################################################################################
+#set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 #message("CMAKE_MODULE_PATH Prefix: ${CMAKE_MODULE_PATH}")
-#message("CMakeInstall Prefix: ${CMAKE_INSTALL_PREFIX}")
-include(AddDependencies)
-
-set(CMAKE_VERBOSE_MAKEFILE ON)
-
+message("CMakeInstall Prefix: ${CMAKE_INSTALL_PREFIX}")
+include(${PROJECT_SOURCE_DIR}/cmake/AddDependencies.cmake)
 set(nanopolish_DEPENDENCIES z m hts dl pthread hdf5)
 #set(nanopolish_DEPENDENCIES ${HDF5_LIBRARIES} ${HTSLIB_LIBRARY} ${LIBCURL_LIBRARY} ${ZLIB_LIBRARIES} ${LIBLZMA_LIBRARY} ${LIBBZ2_LIBRARY} ${ZLIB_LIBRARIES} ${LIBM_LIBRARY} ${LIBDL_LIBRARY} ${LIBPTHREAD_LIBRARY})
-
-set(nanopolish_SOURCE
+############################################################################################################
+# Create object library
+############################################################################################################
+add_library(nanopolish_objlib OBJECT
         ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_call_variants.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_call_methylation.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_extract.cpp
@@ -68,43 +62,175 @@ set(nanopolish_SOURCE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/stdaln.c)
 
 
-set(nanopolish_MAIN src/main/nanopolish.cpp)
-add_library(nanopolish_LIBRARY STATIC ${nanopolish_SOURCE})
-target_link_libraries(nanopolish_LIBRARY
+target_link_libraries(nanopolish_objlib
         PUBLIC
         ${nanopolish_DEPENDENCIES}
         OpenMP::OpenMP_CXX)
 
-set_target_properties(nanopolish_LIBRARY PROPERTIES
-        OUTPUT_NAME "nanopolish"
-        PREFIX ""
-        DEFINE_SYMBOL "")
-
-target_include_directories(nanopolish_LIBRARY
+target_include_directories(nanopolish_objlib
         PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/alignment
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/common
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/main
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/test
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/nanopolish>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/alignment>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/common>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/hmm>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie>
         ${EIGEN3_INCLUDE_DIR}
         ${HDF5_INCLUDE_DIRS}
         ${ZLIB_INCLUDE_DIRS}
         ${HDF5_INCLUDE_DIRS}
         ${HTSLIB_INCLUDE_DIRS}
         PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/fast5/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/fast5/include/fast5)
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fast5/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fast5/include/fast5>)
 
-install(TARGETS nanopolish_LIBRARY DESTINATION nanopolish-install/bin)
+set_target_properties(nanopolish_objlib PROPERTIES
+        POSITION_INDEPENDENT_CODE 1)
 
-add_executable(nanopolish ${nanopolish_MAIN})
-target_link_libraries(nanopolish PUBLIC nanopolish_LIBRARY)
+target_compile_features(nanopolish_objlib PRIVATE cxx_std_11)
+target_compile_options(nanopolish_objlib PRIVATE
+        -Wall
+        #        -Werror
+        #        -Wno-error=maybe-uninitialized
+        -Wconversion
+        -Wno-unused-result
+        -Wpedantic
+        $<$<CONFIG:RELEASE>:-g0>
+        $<$<CONFIG:RELEASE>:-O3>
+        $<$<CONFIG:DEBUG>:-ggdb3>
+        $<$<CONFIG:DEBUG>:-O0>
+        $<$<CONFIG:DEBUG>:-ggdb3>
+        )
+target_compile_definitions(nanopolish_objlib PRIVATE
+        $<$<CONFIG:RELEASE>:NDEBUG>
+        $<$<CONFIG:RELEASE>:BOOST_DISABLE_ASSERTS>
+        )
+
+############################################################################################################
+# Create Static library
+############################################################################################################
+add_library(nanopolish_static_lib STATIC $<TARGET_OBJECTS:nanopolish_objlib>)
+target_link_libraries(nanopolish_static_lib nanopolish_objlib)
+set_target_properties(nanopolish_static_lib PROPERTIES
+        OUTPUT_NAME "nanopolish_static_lib"
+        PREFIX ""
+        DEFINE_SYMBOL ""
+        VERSION ${PROJECT_VERSION})
+
+############################################################################################################
+# Create dynamic library
+############################################################################################################
+add_library(nanopolishlib SHARED $<TARGET_OBJECTS:nanopolish_objlib>)
+target_link_libraries(nanopolishlib nanopolish_objlib)
+set_target_properties(nanopolishlib PROPERTIES
+        OUTPUT_NAME "nanopolishlib"
+        PREFIX ""
+        DEFINE_SYMBOL ""
+        VERSION ${PROJECT_VERSION})
+
+############################################################################################################
+# Create dynamic executable library
+############################################################################################################
+add_executable(nanopolish src/main/nanopolish.cpp)
+target_link_libraries(nanopolish PUBLIC nanopolish_static_lib)
 target_include_directories(nanopolish
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/fast5/include
         ${CMAKE_CURRENT_SOURCE_DIR}/fast5/include/fast5)
+
+############################################################################################################
+# Install
+############################################################################################################
+include(GNUInstallDirs)
+
+install(TARGETS nanopolish_static_lib nanopolishlib nanopolish nanopolish_objlib
+        EXPORT nanopolishTargets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        )
+############################################################################################################
+install(FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_squiggle_read.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_read_db.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_scorereads.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_call_variants.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_haplotype.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model/nanopolish_builtin_models.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model/nanopolish_model_names.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model/nanopolish_pore_model_set.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model/nanopolish_poremodel.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_phase_reads.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_polya_estimator.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_methyltrain.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_train_poremodel_from_basecalls.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_iupac.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/progress.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/logsum.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_alphabet.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_common.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_matrix.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_fast5_io.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_klcs.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_bam_processor.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_variant.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/profiler.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/nanopolish_bam_utils.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_index.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/alignment/nanopolish_eventalign.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/alignment/nanopolish_alignment_db.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/alignment/nanopolish_anchor.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_getmodel.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm/nanopolish_hmm_input_sequence.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm/nanopolish_transition_parameters.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm/nanopolish_emissions.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm/nanopolish_duration_model.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm/nanopolish_profile_hmm.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm/nanopolish_profile_hmm_r7.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/hmm/nanopolish_profile_hmm_r9.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_extract.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_vcf2fasta.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_raw_loader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie/scrappie_common.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie/scrappie_stdlib.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie/scrappie_structures.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie/event_detection.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/stdaln.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_call_methylation.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_variant_db.h
+        DESTINATION
+        ${CMAKE_INSTALL_INCLUDEDIR}/nanopolish
+        )
+############################################################################################################
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+        nanopolishConfigVersion.cmake
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY AnyNewerVersion
+)
+
+install(EXPORT nanopolishTargets
+        FILE nanopolishTargets.cmake
+        NAMESPACE nanopolish::
+        DESTINATION
+        ${CMAKE_INSTALL_LIBDIR}/cmake/nanopolish
+        )
+
+configure_file(cmake/nanopolishConfig.cmake
+        "${CMAKE_CURRENT_BINARY_DIR}/cmake/nanopolishConfig.cmake"
+        COPYONLY
+        )
+
+install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/cmake/nanopolishConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/nanopolishConfigVersion.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/nanopolish
+        )
+############################################################################################################
+# export to package registry
+############################################################################################################
+set(CMAKE_EXPORT_PACKAGE_REGISTRY ON)
+export(PACKAGE nanopolish)

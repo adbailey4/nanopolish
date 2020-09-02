@@ -5,6 +5,7 @@ list(APPEND CMAKE_MESSAGE_INDENT "  ")
 ############################################################################################################
 message(CHECK_START "Finding DL LIBRARY")
 find_library(LIBDL_LIBRARY NAMES dl)
+
 if(NOT LIBDL_LIBRARY)
     message(FATAL_ERROR "dl library not found")
 else()
@@ -112,17 +113,12 @@ endif()
 # HTSLIB LIBRARY
 ############################################################################################################
 find_library(HTSLIB_LIBRARY NAMES libhts.a
-        HINTS "${NANOPOLISH_HOME}/htslib"
-        ${CMAKE_INSTALL_PREFIX}/lib
-        /usr/lib
-        ${LIBDIR})
+        HINTS "${NANOPOLISH_HOME}/htslib")
 
 find_path(HTSLIB_INCLUDE_DIR htslib/hts.h
         HINTS ${HTSLIB_LIBRARY}
-        ${CMAKE_INSTALL_PREFIX}/include
-        "${NANOPOLISH_HOME}/htslib"
-        /usr/include
-        ${INCLUDEDIR})
+        "${NANOPOLISH_HOME}/htslib")
+
 message(CHECK_START "Finding htslib LIBRARY")
 if(NOT HTSLIB_INCLUDE_DIR OR NOT HTSLIB_LIBRARY)
     message(FATAL_ERROR "htslib package not found")
@@ -136,27 +132,20 @@ endif()
 
 message(CHECK_START "Finding OpenMP PACKAGE")
 find_package(OpenMP)
-#if(OpenMP_CXX_FOUND)
-#    message(FATAL_ERROR "OpenMP package not found")
-#else()
-#    message(CHECK_PASS "found: ${HTSLIB_LIBRARY} ${HTSLIB_INCLUDE_DIR}")
-##    target_link_libraries(MyTarget PUBLIC OpenMP::OpenMP_CXX)
-#endif()
-
 if(NOT TARGET OpenMP::OpenMP_CXX)
-    find_package(Threads REQUIRED)
-    if(Threads_FOUND)
-        message(FATAL_ERROR "OpenMP package not found")
-    else()
-        add_library(OpenMP::OpenMP_CXX IMPORTED INTERFACE)
-        set_property(TARGET OpenMP::OpenMP_CXX
-                PROPERTY INTERFACE_COMPILE_OPTIONS ${OpenMP_CXX_FLAGS})
-        # Only works if the same flag is passed to the linker; use CMake 3.9+ otherwise (Intel, AppleClang)
-        set_property(TARGET OpenMP::OpenMP_CXX
-                PROPERTY INTERFACE_LINK_LIBRARIES ${OpenMP_CXX_FLAGS} Threads::Threads)
-        message(CHECK_PASS "found: ${OpenMP_CXX_FLAGS}")
-    endif()
-    message(CHECK_PASS "found: ${OpenMP_CXX_FLAGS}")
+    message(FATAL_ERROR "OpenMP package not found")
+#    find_package(Threads REQUIRED)
+#    if(NOT Threads_FOUND)
+#        message(FATAL_ERROR "OpenMP package not found")
+#    else()
+#        add_library(OpenMP::OpenMP_CXX IMPORTED INTERFACE)
+#        set_property(TARGET OpenMP::OpenMP_CXX
+#                PROPERTY INTERFACE_COMPILE_OPTIONS ${OpenMP_CXX_FLAGS})
+#        # Only works if the same flag is passed to the linker; use CMake 3.9+ otherwise (Intel, AppleClang)
+#        set_property(TARGET OpenMP::OpenMP_CXX
+#                PROPERTY INTERFACE_LINK_LIBRARIES ${OpenMP_CXX_FLAGS} Threads::Threads)
+#        message(CHECK_PASS "found: ${OpenMP_CXX_FLAGS}")
+#    endif()
 else()
     message(CHECK_PASS "found: ${OpenMP_CXX_FLAGS}")
 endif()
