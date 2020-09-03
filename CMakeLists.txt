@@ -211,6 +211,10 @@ write_basic_package_version_file(
         VERSION ${PROJECT_VERSION}
         COMPATIBILITY AnyNewerVersion
 )
+#export(EXPORT nanopolishTargets
+#        FILE "${CMAKE_CURRENT_BINARY_DIR}/nanopolishTargets.cmake"
+#        NAMESPACE Upstream::
+#        )
 
 install(EXPORT nanopolishTargets
         FILE nanopolishTargets.cmake
