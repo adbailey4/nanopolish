@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(nanopolish VERSION 0.11.1)
+include(GNUInstallDirs)
+enable_language(Fortran)
+
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
 if(EXISTS "${LOC_PATH}")
@@ -11,10 +14,10 @@ endif()
 ############################################################################################################
 #set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 #message("CMAKE_MODULE_PATH Prefix: ${CMAKE_MODULE_PATH}")
-message("CMakeInstall Prefix: ${CMAKE_INSTALL_PREFIX}")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
+message(STATUS "CMakeInstall Prefix: ${CMAKE_INSTALL_PREFIX}")
 include(${PROJECT_SOURCE_DIR}/cmake/AddDependencies.cmake)
-set(nanopolish_DEPENDENCIES z m hts dl pthread hdf5)
-#set(nanopolish_DEPENDENCIES ${HDF5_LIBRARIES} ${HTSLIB_LIBRARY} ${LIBCURL_LIBRARY} ${ZLIB_LIBRARIES} ${LIBLZMA_LIBRARY} ${LIBBZ2_LIBRARY} ${ZLIB_LIBRARIES} ${LIBM_LIBRARY} ${LIBDL_LIBRARY} ${LIBPTHREAD_LIBRARY})
+
 ############################################################################################################
 # Create object library
 ############################################################################################################
@@ -64,8 +67,7 @@ add_library(nanopolish_objlib OBJECT
 
 target_link_libraries(nanopolish_objlib
         PUBLIC
-        ${nanopolish_DEPENDENCIES}
-        OpenMP::OpenMP_CXX)
+        ${nanopolish_LINK_LIBRARIES})
 
 target_include_directories(nanopolish_objlib
         PUBLIC
@@ -77,11 +79,7 @@ target_include_directories(nanopolish_objlib
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie>
-        ${EIGEN3_INCLUDE_DIR}
-        ${HDF5_INCLUDE_DIRS}
-        ${ZLIB_INCLUDE_DIRS}
-        ${HDF5_INCLUDE_DIRS}
-        ${HTSLIB_INCLUDE_DIRS}
+        ${nanopolish_INCLUDE_DIRS}
         PRIVATE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fast5/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/fast5/include/fast5>)
@@ -113,7 +111,8 @@ target_compile_definitions(nanopolish_objlib PRIVATE
 ############################################################################################################
 add_library(nanopolish_static_lib STATIC $<TARGET_OBJECTS:nanopolish_objlib>)
 target_link_libraries(nanopolish_static_lib nanopolish_objlib)
-set_target_properties(nanopolish_static_lib PROPERTIES
+set_target_properties(nanopolish_static_lib
+        PROPERTIES
         OUTPUT_NAME "nanopolish_static_lib"
         PREFIX ""
         DEFINE_SYMBOL ""
@@ -131,7 +130,7 @@ set_target_properties(nanopolishlib PROPERTIES
         VERSION ${PROJECT_VERSION})
 
 ############################################################################################################
-# Create dynamic executable library
+# Create static executable
 ############################################################################################################
 add_executable(nanopolish src/main/nanopolish.cpp)
 target_link_libraries(nanopolish PUBLIC nanopolish_static_lib)
@@ -139,11 +138,22 @@ target_include_directories(nanopolish
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/fast5/include
         ${CMAKE_CURRENT_SOURCE_DIR}/fast5/include/fast5)
+############################################################################################################
+# Create static test
+############################################################################################################
+
+add_executable(nanopolish_test src/test/nanopolish_test.cpp)
+target_link_libraries(nanopolish_test PUBLIC nanopolish_static_lib)
+target_include_directories(nanopolish_test
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/test/
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/fast5/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/fast5/include/fast5)
 
 ############################################################################################################
 # Install
 ############################################################################################################
-include(GNUInstallDirs)
 
 install(TARGETS nanopolish_static_lib nanopolishlib nanopolish nanopolish_objlib
         EXPORT nanopolishTargets
@@ -207,14 +217,10 @@ install(FILES
 ############################################################################################################
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
-        nanopolishConfigVersion.cmake
+        cmake/nanopolishConfigVersion.cmake
         VERSION ${PROJECT_VERSION}
         COMPATIBILITY AnyNewerVersion
 )
-#export(EXPORT nanopolishTargets
-#        FILE "${CMAKE_CURRENT_BINARY_DIR}/nanopolishTargets.cmake"
-#        NAMESPACE Upstream::
-#        )
 
 install(EXPORT nanopolishTargets
         FILE nanopolishTargets.cmake
@@ -228,9 +234,15 @@ configure_file(cmake/nanopolishConfig.cmake
         COPYONLY
         )
 
+configure_file(cmake/modules/FindHTSlib.cmake
+        "${CMAKE_CURRENT_BINARY_DIR}/cmake/modules/FindHTSlib.cmake"
+        COPYONLY
+        )
+
 install(FILES
         "${CMAKE_CURRENT_BINARY_DIR}/cmake/nanopolishConfig.cmake"
-        "${CMAKE_CURRENT_BINARY_DIR}/nanopolishConfigVersion.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/cmake/nanopolishConfigVersion.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/cmake/modules/FindHTSlib.cmake"
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/nanopolish
         )
 ############################################################################################################
@@ -238,3 +250,16 @@ install(FILES
 ############################################################################################################
 set(CMAKE_EXPORT_PACKAGE_REGISTRY ON)
 export(PACKAGE nanopolish)
+
+############################################################################################################
+# uninstall
+############################################################################################################
+if(NOT TARGET uninstall)
+    configure_file(
+            ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in
+            ${CMAKE_CURRENT_BINARY_DIR}/cmake/cmake_uninstall.cmake
+            IMMEDIATE @ONLY)
+    add_custom_target(uninstall
+            COMMAND ${CMAKE_COMMAND} -P
+            ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+endif()
