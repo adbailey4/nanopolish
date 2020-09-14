@@ -16,6 +16,7 @@ hdf5-*/
 include/
 lib/
 share/
+data/
 
 hdf5-1.*.tar.gz
 3.2.5.tar.bz2
