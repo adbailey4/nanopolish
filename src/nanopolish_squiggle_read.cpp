@@ -7,6 +7,7 @@
 // space nanopore read
 //
 #include <algorithm>
+#include <iostream>
 #include "nanopolish_common.h"
 #include "nanopolish_squiggle_read.h"
 #include "nanopolish_pore_model_set.h"
@@ -14,6 +15,7 @@
 #include "nanopolish_extract.h"
 #include "nanopolish_raw_loader.h"
 #include "nanopolish_fast5_io.h"
+#include "nanopolish_alignment_db.h"
 
 extern "C" {
 #include "event_detection.h"
@@ -66,10 +68,11 @@ void SquiggleScalings::set6(double _shift,
 }
 
 //
-SquiggleRead::SquiggleRead(const std::string& name, const ReadDB& read_db, const uint32_t flags) :
+SquiggleRead::SquiggleRead(const std::string& name, const ReadDB& read_db, const uint32_t flags, bool rna) :
     read_name(name),
     nucleotide_type(SRNT_DNA),
     pore_type(PT_UNKNOWN),
+    rna(rna),
     f_p(nullptr)
 {
 
@@ -91,7 +94,7 @@ SquiggleRead::SquiggleRead(const std::string& name, const ReadDB& read_db, const
 
         // Try to detect whether this read is DNA or RNA
         // Fix issue 531: experiment_type in fast5 is "rna" for cDNA kit dcs108
-        bool rna_experiment = experiment_type == "rna" || experiment_type == "internal_rna";
+        bool rna_experiment = experiment_type == "rna" || experiment_type == "internal_rna" || this->rna;
         this->nucleotide_type = rna_experiment && sequencing_kit != "sqk-dcs108" ? SRNT_RNA : SRNT_DNA;
 
         // Did this read come from nanopolish extract?
@@ -270,6 +273,113 @@ void SquiggleRead::load_from_events(const uint32_t flags)
     }
 }
 
+
+void SquiggleRead::load_cigar(const bam1_t* record, std::string ref_seq, int read_stride){
+  // This code is derived from bam_fillmd1_core
+  uint32_t *cigar = bam_get_cigar(record);
+  const bam1_core_t *c = &record->core;
+
+  uint32_t k = this->base_model[0]->k;
+
+  int read_pos = 0;
+  int ref_pos = 0;
+  int ref_seq_length = ref_seq.length();
+//  seq_align_record.sequence;
+//  this->read_sequence;
+  this->sequence_to_alignment.resize(this->read_sequence.length()+1);
+  bool reversed = (bool)bam_is_rev(record);
+  if (reversed){
+    ref_pos = 1;
+  }
+
+
+  int start_ref_pos = c->pos;
+  std::string cigar_string;
+  std::string query_string;
+  std::string ref_string;
+  int real_index;
+  std::string cigar_char;
+
+  for (int ci = 0; ci < c->n_cigar; ++ci) {
+    if (reversed) {
+      real_index = c->n_cigar - ci - 1;
+    } else{
+      real_index = ci;
+    }
+    int cigar_len = cigar[real_index] >> 4;
+    int cigar_op = cigar[real_index] & 0xf;
+    // Set the amount that the ref/read positions should be incremented
+    // based on the cigar operation
+    int read_inc = 0;
+    int ref_inc = 0;
+
+    // Process match between the read and the reference
+    if(cigar_op == BAM_CMATCH || cigar_op == BAM_CEQUAL || cigar_op == BAM_CDIFF) {
+      read_inc = read_stride;
+      ref_inc = 1;
+      cigar_char = "M";
+    } else if(cigar_op == BAM_CDEL) {
+      ref_inc = 1;
+      cigar_char = "D";
+    } else if(cigar_op == BAM_CREF_SKIP) {
+      // end the current segment and start a new one
+      ref_inc = 1;
+      cigar_char = "N";
+    } else if(cigar_op == BAM_CINS) {
+      read_inc = read_stride;
+      cigar_char = "I";
+    } else if(cigar_op == BAM_CSOFT_CLIP) {
+      cigar_char = "S";
+      read_inc = 1; // special case, do not use read_stride
+    } else if(cigar_op == BAM_CHARD_CLIP) {
+      read_inc = 0;
+      cigar_char = "H";
+    } else {
+      printf("Cigar: %d\n", cigar_op);
+      assert(false && "Unhandled cigar operation");
+    }
+//    std::cout << cigar_len << cigar_char;
+    // Iterate over the pairs of aligned bases
+    for(int j = 0; j < cigar_len; ++j) {
+      // increment
+      if (ref_pos >= ref_seq_length){
+        ref_pos = ref_seq_length-1;
+      }
+      if (read_inc == 0 and ref_inc == 1){
+        query_string += "_";
+        ref_string += ref_seq[ref_pos];
+      } else if (read_inc == 1 and ref_inc == 0){
+        query_string += this->read_sequence[read_pos];
+        ref_string += "_";
+      } else if (read_inc == 1 and ref_inc == 1){
+        query_string += this->read_sequence[read_pos];
+        ref_string += ref_seq[ref_pos];
+        if (ref_seq[ref_pos] == this->read_sequence[read_pos]){
+          cigar_char = "M";
+        } else {
+          cigar_char = "X";
+        }
+      }
+      cigar_string += cigar_char;
+      if (read_pos >= (k-1)){
+        if (cigar_char != "H"){
+          if (read_inc == 1){
+            this->sequence_to_alignment[read_pos-(k-1)] = { query_string.substr(query_string.size() - k), read_pos,
+                                                            ref_string.substr(ref_string.size() - k),
+                                                            ref_pos+start_ref_pos,
+                                                            cigar_string.substr(cigar_string.size() - k)};
+          }
+          ref_string = ref_string.substr(1);
+          query_string = query_string.substr(1);
+        }
+        cigar_string = cigar_string.substr(1);
+      }
+      read_pos += read_inc;
+      ref_pos += ref_inc;
+    }
+  }
+}
+
 //
 void SquiggleRead::load_from_raw(fast5_file& f5_file, const uint32_t flags)
 {
@@ -365,7 +475,6 @@ void SquiggleRead::load_from_raw(fast5_file& f5_file, const uint32_t flags)
         size_t n_kmers = read_sequence.size() - this->get_model_k(strand_idx) + 1;
         this->base_to_event_map.clear();
         this->base_to_event_map.resize(n_kmers);
-
         size_t max_event = 0;
         size_t min_event = std::numeric_limits<size_t>::max();
 
@@ -1124,13 +1233,23 @@ std::vector<EventAlignment> SquiggleRead::get_eventalignment_for_1d_basecalls(co
                                                                               const std::vector<EventRangeForBase>& base_to_event_map_1d,
                                                                               const size_t k,
                                                                               const size_t strand_idx,
-                                                                              const int shift_offset) const
+                                                                              const int shift_offset)
 {
     std::vector<EventAlignment> alignment;
 
     const Alphabet* alphabet = get_alphabet_by_name(alphabet_name);
     size_t n_kmers = read_sequence_1d.size() - k + 1;
     size_t prev_kmer_rank = -1;
+    int num_events = 0;
+    int event = 0;
+    for (auto event_range: base_to_event_map_1d){
+      event = event_range.indices[strand_idx].stop;
+      if (num_events < event){
+        num_events = event;
+      }
+    }
+    this->event_to_base_map.clear();
+    this->event_to_base_map.resize(num_events+1);
 
     for(int ki = 0; ki < n_kmers; ++ki) {
         IndexPair event_range_for_kmer = base_to_event_map_1d[ki].indices[strand_idx];
@@ -1147,7 +1266,9 @@ std::vector<EventAlignment> SquiggleRead::get_eventalignment_for_1d_basecalls(co
         for(size_t event_idx = event_range_for_kmer.start;
             event_idx <= event_range_for_kmer.stop; event_idx++)
         {
-            assert(event_idx < this->events[strand_idx].size());
+          this->event_to_base_map[event_idx] = ki;
+
+          assert(event_idx < this->events[strand_idx].size());
 
             // since we use the 1D read seqence here we never have to reverse complement
             std::string kmer = read_sequence_1d.substr(ki + shift_offset, k);
@@ -1168,7 +1289,6 @@ std::vector<EventAlignment> SquiggleRead::get_eventalignment_for_1d_basecalls(co
             prev_kmer_rank = kmer_rank;
         }
     }
-
     return alignment;
 }
 
@@ -1321,3 +1441,92 @@ void SquiggleRead::detect_basecall_group()
         exit(EXIT_FAILURE);
     }
 }
+
+
+void SquiggleRead::get_events(std::string& f5_path, const uint32_t flags)
+{
+  fast5_file f5_file = fast5_open(f5_path);
+  if(fast5_is_open(f5_file)) {
+    // Hardcoded parameters, for now we can only do template with the main R9.4 model
+    size_t strand_idx = 0;
+    std::string alphabet = "nucleotide";
+    std::string kit = "r9.4_450bps";
+    std::string strand_str = "template";
+    size_t k = 6;
+
+    const detector_param* ed_params = &event_detection_defaults;
+
+    if(this->nucleotide_type == SRNT_RNA) {
+      kit = "r9.4_70bps";
+      alphabet = "u_to_t_rna";
+      k = 5;
+      ed_params = &event_detection_rna;
+
+      std::replace(this->read_sequence.begin(), this->read_sequence.end(), 'U', 'T');
+    }
+
+    this->read_type = SRT_TEMPLATE;
+    this->pore_type = PT_R9;
+
+    // Set the base model for this read to either the nucleotide or U->T RNA model
+    this->base_model[strand_idx] = PoreModelSet::get_model(kit, alphabet, strand_str, k);
+    assert(this->base_model[strand_idx] != NULL);
+
+    // Read the sample rate
+    auto channel_params = fast5_get_channel_params(f5_file, this->read_name);
+    this->sample_rate = channel_params.sample_rate;
+
+    // Read the actual samples
+    raw_table rt = fast5_get_raw_samples(f5_file, this->read_name, channel_params);
+
+    // trim using scrappie's internal method
+    // parameters taken directly from scrappie defaults
+    int trim_start = 200;
+    int trim_end = 10;
+    int varseg_chunk = 100;
+    float varseg_thresh = 0.0;
+    trim_and_segment_raw(rt, trim_start, trim_end, varseg_chunk, varseg_thresh);
+    event_table et = detect_events(rt, *ed_params);
+    assert(rt.n > 0);
+    assert(et.n > 0);
+
+    //
+    this->scalings[strand_idx] = estimate_scalings_using_mom(this->read_sequence,
+                                                             *this->base_model[strand_idx],
+                                                             et);
+
+    // copy events into nanopolish's format
+    this->events[strand_idx].resize(et.n);
+    double start_time = 0;
+    for(size_t i = 0; i < et.n; ++i) {
+      float length_in_seconds = et.event[i].length / this->sample_rate;
+      this->events[strand_idx][i] = { et.event[i].mean, et.event[i].stdv, start_time, length_in_seconds, logf(et.event[i].stdv) };
+      start_time += length_in_seconds;
+    }
+
+    if(flags & SRF_LOAD_RAW_SAMPLES) {
+      this->sample_start_time = 0;
+      this->samples.resize(rt.n);
+      for(size_t i = 0; i < this->samples.size(); ++i) {
+        assert(rt.start + i < rt.n);
+        this->samples[i] = rt.raw[rt.start + i];
+      }
+    }
+
+    // If sequencing RNA, reverse the events to be 5'->3'
+    if(this->nucleotide_type == SRNT_RNA) {
+      std::reverse(this->events[strand_idx].begin(), this->events[strand_idx].end());
+    }
+
+    // clean up scrappie raw and event tables
+    assert(rt.raw != NULL);
+    assert(et.event != NULL);
+    free(rt.raw);
+    free(et.event);
+
+  } else {
+    fprintf(stderr, "[warning] fast5 file is unreadable and will be skipped: %s\n", fast5_path.c_str());
+  }
+}
+
+

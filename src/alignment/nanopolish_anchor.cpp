@@ -21,7 +21,7 @@ std::vector<AlignedSegment> get_aligned_segments(const bam1_t* record, int read_
 {
     std::vector<AlignedSegment> out;
     // Initialize first segment
-    out.push_back(AlignedSegment());
+    out.emplace_back();
 
     // This code is derived from bam_fillmd1_core
     //uint8_t *ref = NULL;
@@ -40,7 +40,7 @@ std::vector<AlignedSegment> get_aligned_segments(const bam1_t* record, int read_
     int ref_pos = c->pos;
 
     for (int ci = 0; ci < c->n_cigar; ++ci) {
-        
+
         int cigar_len = cigar[ci] >> 4;
         int cigar_op = cigar[ci] & 0xf;
 
@@ -59,7 +59,7 @@ std::vector<AlignedSegment> get_aligned_segments(const bam1_t* record, int read_
             ref_inc = 1;   
         } else if(cigar_op == BAM_CREF_SKIP) {
             // end the current segment and start a new one
-            out.push_back(AlignedSegment());
+            out.emplace_back();
             ref_inc = 1;
         } else if(cigar_op == BAM_CINS) {
             read_inc = read_stride;

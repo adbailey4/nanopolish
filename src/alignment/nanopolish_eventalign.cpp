@@ -59,6 +59,7 @@ static const char *EVENTALIGN_USAGE_MESSAGE =
 "      --help                           display this help and exit\n"
 "      --sam                            write output in SAM format\n"
 "  -w, --window=STR                     compute the consensus for window STR (format: ctg:start_id-end_id)\n"
+"  -o, --output_dir=STR                 output directory to place eventalign tables\n"
 "  -r, --reads=FILE                     the 2D ONT reads are in fasta FILE\n"
 "  -b, --bam=FILE                       the reads aligned to the genome assembly are in bam FILE\n"
 "  -g, --genome=FILE                    the genome we are computing a consensus for is in FILE\n"
@@ -67,10 +68,12 @@ static const char *EVENTALIGN_USAGE_MESSAGE =
 "      --scale-events                   scale events to the model, rather than vice-versa\n"
 "      --progress                       print out a progress message\n"
 "  -n, --print-read-names               print read names instead of indexes\n"
+"      --rna                            force to interpret reads as RNA\n"
 "      --summary=FILE                   summarize the alignment of each read/strand in FILE\n"
 "      --samples                        write the raw samples for the event to the tsv output\n"
 "      --signal-index                   write the raw signal start and end index values for the event to the tsv output\n"
 "      --models-fofn=FILE               read alternative k-mer models from FILE\n"
+"      --cigar_output                   output original cigar information for each event\n"
 "\nReport bugs to " PACKAGE_BUGREPORT "\n\n";
 
 namespace opt
@@ -81,6 +84,7 @@ namespace opt
     static std::string genome_file;
     static std::string region;
     static std::string summary_file;
+    static std::string output_dir;
     static std::string models_fofn;
     static int output_sam = 0;
     static int progress = 0;
@@ -89,14 +93,15 @@ namespace opt
     static int batch_size = 512;
     static int min_mapping_quality = 0;
     static bool print_read_names;
-    static bool full_output;
+    static bool rna = false;
     static bool write_samples = false;
     static bool write_signal_index = false;
+    static bool cigar_output = false;
 }
 
-static const char* shortopts = "r:b:g:t:w:q:vn";
+static const char* shortopts = "r:b:g:t:w:q:o:c:vn";
 
-enum { OPT_HELP = 1, OPT_VERSION, OPT_PROGRESS, OPT_SAM, OPT_SUMMARY, OPT_SCALE_EVENTS, OPT_MODELS_FOFN, OPT_SAMPLES, OPT_SIGNAL_INDEX };
+enum { OPT_HELP = 1, OPT_VERSION, OPT_RNA, OPT_PROGRESS, OPT_SAM, OPT_SUMMARY, OPT_SCALE_EVENTS, OPT_MODELS_FOFN, OPT_SAMPLES, OPT_SIGNAL_INDEX };
 
 static const struct option longopts[] = {
     { "verbose",             no_argument,       NULL, 'v' },
@@ -106,13 +111,16 @@ static const struct option longopts[] = {
     { "window",              required_argument, NULL, 'w' },
     { "threads",             required_argument, NULL, 't' },
     { "min-mapping-quality", required_argument, NULL, 'q' },
+    { "output_dir",          required_argument, NULL, 'o' },
     { "summary",             required_argument, NULL, OPT_SUMMARY },
     { "models-fofn",         required_argument, NULL, OPT_MODELS_FOFN },
     { "print-read-names",    no_argument,       NULL, 'n' },
+    { "cigar_output",        no_argument,       NULL, 'c' },
     { "samples",             no_argument,       NULL, OPT_SAMPLES },
     { "signal-index",        no_argument,       NULL, OPT_SIGNAL_INDEX },
     { "scale-events",        no_argument,       NULL, OPT_SCALE_EVENTS },
     { "sam",                 no_argument,       NULL, OPT_SAM },
+    { "rna",                 no_argument,       NULL, OPT_RNA },
     { "progress",            no_argument,       NULL, OPT_PROGRESS },
     { "help",                no_argument,       NULL, OPT_HELP },
     { "version",             no_argument,       NULL, OPT_VERSION },
@@ -122,7 +130,7 @@ static const struct option longopts[] = {
 // convenience wrapper for the two output modes
 struct EventalignWriter
 {
-    FILE* tsv_fp;
+    std::string tsv_fp;
     htsFile* sam_fp;
     FILE* summary_fp;
 };
@@ -231,6 +239,9 @@ void emit_tsv_header(FILE* fp)
     fprintf(fp, "%s\t%s\t%s\t%s\t", "event_index", "event_level_mean", "event_stdv", "event_length");
     fprintf(fp, "%s\t%s\t%s\t%s", "model_kmer", "model_mean", "model_stdv", "standardized_level");
 
+    if (opt::cigar_output){
+      fprintf(fp, "\t%s\t%s\t%s\t%s", "cigar_basecalled_kmer", "cigar_string", "cigar_ref_kmer", "basecall_index");
+    }
     if(opt::write_signal_index) {
         fprintf(fp, "\t%s\t%s", "start_idx", "end_idx");
     }
@@ -402,6 +413,7 @@ void emit_event_alignment_tsv(FILE* fp,
                               const std::vector<EventAlignment>& alignments)
 {
     assert(params.alphabet == "");
+
     const PoreModel* pore_model = params.get_model();
     uint32_t k = pore_model->k;
     for(size_t i = 0; i < alignments.size(); ++i) {
@@ -463,7 +475,12 @@ void emit_event_alignment_tsv(FILE* fp,
                                                model_mean,
                                                model_stdv,
                                                standard_level);
-
+        if (opt::cigar_output) {
+          int base = sr.event_to_base_map[ea.event_idx];
+          RefSeqAlignment ref_seq_alignment = sr.sequence_to_alignment[base];
+          fprintf(fp, "\t%s\t%s\t%s\t%i", ref_seq_alignment.query.c_str(), ref_seq_alignment.cigar.c_str(),
+                  ref_seq_alignment.ref.c_str(), ref_seq_alignment.query_index);
+        }
         if(opt::write_signal_index) {
             std::pair<size_t, size_t> signal_idx = sr.get_event_sample_idx(ea.strand_idx, ea.event_idx);
             fprintf(fp, "\t%zu\t%zu", signal_idx.first, signal_idx.second);
@@ -546,6 +563,7 @@ void realign_read(const ReadDB& read_db,
                   int region_end)
 {
     // Load a squiggle read for the mapped read
+
     std::string read_name = bam_get_qname(record);
 
     // load read
@@ -555,11 +573,20 @@ void realign_read(const ReadDB& read_db,
     } else {
         sr_flag = 0;
     }
-    SquiggleRead sr(read_name, read_db, sr_flag);
+    SquiggleRead sr(read_name, read_db, sr_flag, opt::rna);
 
     if(opt::verbose > 1) {
         fprintf(stderr, "Realigning %s [%zu %zu]\n",
                 read_name.c_str(), sr.events[0].size(), sr.events[1].size());
+    }
+    bool close = FALSE;
+    FILE* file_handle;
+      // Do not align this strand if it was not sequenced
+    if(sr.has_events_for_strand(0) or sr.has_events_for_strand(1)) {
+      std::string path = writer.tsv_fp + "/" + read_name + ".tsv";
+      file_handle = fopen(path.c_str(), "w");
+      emit_tsv_header(file_handle);
+      close = TRUE;
     }
 
     for(int strand_idx = 0; strand_idx < 2; ++strand_idx) {
@@ -579,7 +606,7 @@ void realign_read(const ReadDB& read_db,
         params.read_idx = read_idx;
         params.region_start = region_start;
         params.region_end = region_end;
-
+//        std::cout << read_name << "\n";
         std::vector<EventAlignment> alignment = align_read_to_ref(params);
 
         EventalignSummary summary;
@@ -593,7 +620,7 @@ void realign_read(const ReadDB& read_db,
             if(opt::output_sam) {
                 emit_event_alignment_sam(writer.sam_fp, sr, hdr, record, alignment);
             } else {
-                emit_event_alignment_tsv(writer.tsv_fp, sr, strand_idx, params, alignment);
+                emit_event_alignment_tsv(file_handle, sr, strand_idx, params, alignment);
             }
 
             if(writer.summary_fp != NULL && summary.num_events > 0) {
@@ -606,6 +633,9 @@ void realign_read(const ReadDB& read_db,
                 fprintf(writer.summary_fp, "%.2lf\t%.3lf\t%.3lf\t%.3lf\t%.3lf\n", summary.sum_duration, scalings.shift, scalings.scale, scalings.drift, scalings.var);
             }
         }
+    }
+    if (close){
+      fclose(file_handle);
     }
 }
 
@@ -628,7 +658,7 @@ std::vector<EventAlignment> align_read_to_ref(const EventAlignmentParameters& pa
     std::string ref_name(params.hdr->target_name[params.record->core.tid]);
     std::string ref_seq = get_reference_region_ts(params.fai, ref_name.c_str(), ref_offset,
                                                   bam_endpos(params.record), &fetched_len);
-
+//    std::cout << ref_name.c_str() << "\t" << ref_offset << "\t" << bam_endpos(params.record) << "\t" << fetched_len << "\n";
     // convert to upper case
     std::transform(ref_seq.begin(), ref_seq.end(), ref_seq.begin(), ::toupper);
 
@@ -647,6 +677,15 @@ std::vector<EventAlignment> align_read_to_ref(const EventAlignmentParameters& pa
 
     // Get the read-to-reference aligned segments
     std::vector<AlignedSegment> aligned_segments = get_aligned_segments(params.record);
+
+    if (opt::cigar_output) {
+      if (bam_is_rev(params.record)) {
+        params.sr->load_cigar(params.record, rc_ref_seq);
+      } else {
+        params.sr->load_cigar(params.record, ref_seq);
+      }
+    }
+
     for(size_t segment_idx = 0; segment_idx < aligned_segments.size(); ++segment_idx) {
 
         AlignedSegment& aligned_pairs = aligned_segments[segment_idx];
@@ -835,11 +874,12 @@ void parse_eventalign_options(int argc, char** argv)
             case 'r': arg >> opt::reads_file; break;
             case 'g': arg >> opt::genome_file; break;
             case 'b': arg >> opt::bam_file; break;
+            case 'o': arg >> opt::output_dir; break;
             case '?': die = true; break;
             case 't': arg >> opt::num_threads; break;
             case 'q': arg >> opt::min_mapping_quality; break;
             case 'n': opt::print_read_names = true; break;
-            case 'f': opt::full_output = true; break;
+            case 'c': opt::cigar_output = true; break;
             case OPT_SIGNAL_INDEX: opt::write_signal_index = true; break;
             case OPT_SAMPLES: opt::write_samples = true; break;
             case 'v': opt::verbose++; break;
@@ -848,6 +888,7 @@ void parse_eventalign_options(int argc, char** argv)
             case OPT_SUMMARY: arg >> opt::summary_file; break;
             case OPT_SAM: opt::output_sam = true; break;
             case OPT_PROGRESS: opt::progress = true; break;
+            case OPT_RNA: opt::rna = true; break;
             case OPT_HELP:
                 std::cout << EVENTALIGN_USAGE_MESSAGE;
                 exit(EXIT_SUCCESS);
@@ -870,7 +911,10 @@ void parse_eventalign_options(int argc, char** argv)
         std::cerr << SUBPROGRAM ": invalid number of threads: " << opt::num_threads << "\n";
         die = true;
     }
-
+    if(opt::output_dir.empty()) {
+        std::cerr << SUBPROGRAM ": a --output_dir file must be provided\n";
+        die = true;
+    }
     if(opt::reads_file.empty()) {
         std::cerr << SUBPROGRAM ": a --reads file must be provided\n";
         die = true;
@@ -918,7 +962,7 @@ int eventalign_main(int argc, char** argv)
 #endif
 
     // Initialize output
-    EventalignWriter writer = { NULL, NULL, NULL };
+    EventalignWriter writer = {std::string(), nullptr, nullptr };
 
     if(!opt::summary_file.empty()) {
         writer.summary_fp = fopen(opt::summary_file.c_str(), "w");
@@ -939,8 +983,7 @@ int eventalign_main(int argc, char** argv)
         writer.sam_fp = hts_open("-", "w");
         emit_sam_header(writer.sam_fp, processor.get_bam_header());
     } else {
-        writer.tsv_fp = stdout;
-        emit_tsv_header(writer.tsv_fp);
+        writer.tsv_fp = opt::output_dir;
     }
 
     // run

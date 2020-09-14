@@ -16,8 +16,13 @@ hdf5-*/
 include/
 lib/
 share/
+data/
 
 hdf5-1.*.tar.gz
 3.2.5.tar.bz2
 eigen/
 local*
+.idea/
+cmake-build-debug/*
+test/dna_data/dna_output/
+test/rna_data/rna_output/
