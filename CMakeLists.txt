@@ -1,11 +1,19 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.15)
 project(nanopolish VERSION 0.11.1)
 include(GNUInstallDirs)
+set(BUILD_SHARED_LIBS  "ON" CACHE STRING "Default build shared library")
+# visibility settings
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
 if(EXISTS "${LOC_PATH}")
     message(FATAL_ERROR "You cannot build in a source directory (or any directory with a CMakeLists.txt file). Please make a build subdirectory. Feel free to remove CMakeCache.txt and CMakeFiles.")
+endif()
+
+if(NOT APPLE)
+    set(CMAKE_INSTALL_RPATH $ORIGIN)
 endif()
 
 ############################################################################################################
@@ -15,9 +23,12 @@ endif()
 #message("CMAKE_MODULE_PATH Prefix: ${CMAKE_MODULE_PATH}")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 message(STATUS "CMakeInstall Prefix: ${CMAKE_INSTALL_PREFIX}")
-set(FIND_STATIC ON)
+#include(${PROJECT_SOURCE_DIR}/cmake/functions/print_target_properties.cmake)
+#include(${PROJECT_SOURCE_DIR}/cmake/functions/dump_cmake_variables.cmake)
+#include(${PROJECT_SOURCE_DIR}/cmake/nanopolishStaticLib.cmake)
+#add_subdirectory(static_lib)
+#add_subdirectory(shared_lib)
 include(${PROJECT_SOURCE_DIR}/cmake/AddDependencies.cmake)
-
 ############################################################################################################
 # Create object library
 ############################################################################################################
@@ -86,15 +97,14 @@ target_include_directories(nanopolish_objlib
 
 set_target_properties(nanopolish_objlib PROPERTIES
         POSITION_INDEPENDENT_CODE 1)
-
-target_compile_features(nanopolish_objlib PRIVATE cxx_std_11)
+target_compile_features(nanopolish_objlib PUBLIC cxx_std_11)
 target_compile_options(nanopolish_objlib PRIVATE
-        -Wall
+#        -Wall
         #        -Werror
         #        -Wno-error=maybe-uninitialized
-        -Wconversion
-        -Wno-unused-result
-        -Wpedantic
+#        -Wconversion
+#        -Wno-unused-result
+#        -Wpedantic
         $<$<CONFIG:RELEASE>:-g0>
         $<$<CONFIG:RELEASE>:-O3>
         $<$<CONFIG:DEBUG>:-ggdb3>
@@ -107,53 +117,48 @@ target_compile_definitions(nanopolish_objlib PRIVATE
         )
 
 ############################################################################################################
-# Create Static library
+# Create library
 ############################################################################################################
-add_library(nanopolish_static_lib STATIC $<TARGET_OBJECTS:nanopolish_objlib>)
-target_link_libraries(nanopolish_static_lib PUBLIC
+add_library(nanopolishlib $<TARGET_OBJECTS:nanopolish_objlib>)
+target_link_libraries(nanopolishlib
+        PUBLIC
         nanopolish_objlib
         ${nanopolish_LINK_LIBRARIES})
-set_target_properties(nanopolish_static_lib
+#        PRIVATE
+#        ${nanopolish_PRIVATE_LINK_LIBRARIES})
+set_target_properties(nanopolishlib
         PROPERTIES
-        OUTPUT_NAME "nanopolish_static_lib"
+        OUTPUT_NAME "nanopolish"
         PREFIX ""
         DEFINE_SYMBOL ""
         VERSION ${PROJECT_VERSION})
 
-set(FIND_STATIC OFF)
-include(${PROJECT_SOURCE_DIR}/cmake/AddDependencies.cmake)
-############################################################################################################
-# Create dynamic library
-############################################################################################################
-add_library(nanopolishlib SHARED $<TARGET_OBJECTS:nanopolish_objlib>)
-target_link_libraries(nanopolishlib PUBLIC
-        nanopolish_objlib
-        ${nanopolish_LINK_LIBRARIES})
-
-set_target_properties(nanopolishlib PROPERTIES
-        OUTPUT_NAME "nanopolishlib"
-        PREFIX ""
-        DEFINE_SYMBOL ""
-        VERSION ${PROJECT_VERSION})
-
-############################################################################################################
-# Create static executable
-############################################################################################################
+#############################################################################################################
+## Create executable
+#############################################################################################################
 add_executable(nanopolish src/main/nanopolish.cpp)
-if (NOT APPLE)
+if (NOT APPLE AND NOT BUILD_SHARED_LIBS)
     message(STATUS "not APPLE")
-    target_link_libraries(nanopolish PUBLIC -static)
-endif(NOT APPLE)
+#    target_link_libraries(nanopolish PUBLIC -static)
+    target_link_libraries(nanopolish PUBLIC -static -static-libgcc -static-libstdc++)
+endif(NOT APPLE AND NOT BUILD_SHARED_LIBS)
 
-target_link_libraries(nanopolish PUBLIC nanopolish_static_lib)
+target_link_libraries(nanopolish PUBLIC nanopolishlib)
 target_include_directories(nanopolish
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/fast5/include
         ${CMAKE_CURRENT_SOURCE_DIR}/fast5/include/fast5)
+
 ############################################################################################################
 # Create test
 ############################################################################################################
 add_executable(nanopolish_test src/test/nanopolish_test.cpp)
+if (NOT APPLE AND NOT BUILD_SHARED_LIBS)
+    message(STATUS "not APPLE")
+#    target_link_libraries(nanopolish_test PUBLIC -static)
+    target_link_libraries(nanopolish_test PUBLIC -static -static-libgcc -static-libstdc++)
+endif(NOT APPLE AND NOT BUILD_SHARED_LIBS)
+
 target_link_libraries(nanopolish_test PUBLIC nanopolishlib)
 target_include_directories(nanopolish_test
         PUBLIC
@@ -165,11 +170,15 @@ target_include_directories(nanopolish_test
 ############################################################################################################
 # Install
 ############################################################################################################
-install(TARGETS nanopolish_static_lib nanopolishlib nanopolish nanopolish_objlib
+install(TARGETS nanopolishlib nanopolish nanopolish_objlib
         EXPORT nanopolishTargets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+                COMPONENT nanopolish_RunTime
+                NAMELINK_COMPONENT nanopolish_Development
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+                COMPONENT nanopolish_Development
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+                COMPONENT nanopolish_RunTime
         INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
         )
 ############################################################################################################
