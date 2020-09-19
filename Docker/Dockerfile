@@ -40,7 +40,9 @@ RUN cmake ../ -DCMAKE_VERBOSE_MAKEFILE=ON -DBUILD_SHARED_LIBS=OFF && make -j 8
 FROM ubuntu:18.04 as runtime
 RUN apt-get update
 COPY --from=build /root/nanopolish/build/nanopolish /bin/nanopolish
+COPY --from=build /root/nanopolish/Docker/run_wrapper.sh /opt/nanopolish/
 
 RUN mkdir /data
 WORKDIR /data
-ENTRYPOINT ["nanopolish"]
+
+ENTRYPOINT ["sh", "/opt/nanopolish/run_wrapper.sh"]
