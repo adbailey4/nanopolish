@@ -3,9 +3,8 @@ LABEL author="Andrew Bailey"
 LABEL maintainer="andbaile@ucsc.edu"
 
 # apt-get installs
-ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc-6 g++-6 sudo autoconf wget curl git build-essential libbz2-dev zlib1g-dev liblzma-dev libeigen3-dev libssl-dev libcurl4-openssl-dev ca-certificates libhdf5-dev python3.7-dev python3-pip && \
+    apt-get install -y --no-install-recommends autoconf wget curl git build-essential libbz2-dev zlib1g-dev liblzma-dev libeigen3-dev libssl-dev libcurl4-openssl-dev ca-certificates libhdf5-dev python3.7-dev python3-pip && \
     apt-get clean && \
     apt-get purge
 
@@ -32,8 +31,8 @@ RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
     python3.7 get-pip.py && \
     python3.7 -m pip install setuptools
 
-#RUN git clone --recursive https://github.com/adbailey4/embed_fast5.git --branch filter_by_position
-COPY . /root/nanopolish
+RUN git clone --recursive https://github.com/adbailey4/nanopolish.git --branch rna_option
+#COPY . /root/nanopolish
 WORKDIR /root/nanopolish/build
 RUN cmake ../ -DCMAKE_VERBOSE_MAKEFILE=ON -DBUILD_SHARED_LIBS=OFF && make -j 8
 #RUN cmake ../ -DCMAKE_VERBOSE_MAKEFILE=ON -DBUILD_SHARED_LIBS=ON && make -j 8
