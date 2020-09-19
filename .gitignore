@@ -23,6 +23,6 @@ hdf5-1.*.tar.gz
 eigen/
 local*
 .idea/
-cmake-build-debug/*
+cmake-build-debug
 test/dna_data/dna_output/
 test/rna_data/rna_output/
