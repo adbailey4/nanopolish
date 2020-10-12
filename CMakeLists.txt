@@ -3,8 +3,8 @@ project(nanopolish VERSION 0.11.1)
 include(GNUInstallDirs)
 set(BUILD_SHARED_LIBS  "ON" CACHE STRING "Default build shared library")
 # visibility settings
-set(CMAKE_CXX_VISIBILITY_PRESET hidden)
-set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+#set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+#set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
 ### Require out-of-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
@@ -23,11 +23,6 @@ endif()
 #message("CMAKE_MODULE_PATH Prefix: ${CMAKE_MODULE_PATH}")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 message(STATUS "CMakeInstall Prefix: ${CMAKE_INSTALL_PREFIX}")
-#include(${PROJECT_SOURCE_DIR}/cmake/functions/print_target_properties.cmake)
-#include(${PROJECT_SOURCE_DIR}/cmake/functions/dump_cmake_variables.cmake)
-#include(${PROJECT_SOURCE_DIR}/cmake/nanopolishStaticLib.cmake)
-#add_subdirectory(static_lib)
-#add_subdirectory(shared_lib)
 include(${PROJECT_SOURCE_DIR}/cmake/AddDependencies.cmake)
 ############################################################################################################
 # Create object library
@@ -75,6 +70,11 @@ add_library(nanopolish_objlib OBJECT
         ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/scrappie/event_detection.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/stdaln.c)
 
+#include(GenerateExportHeader)
+#generate_export_header(nanopolish_objlib
+#        BASE_NAME nanopolish)
+#target_include_directories(nanopolish_objlib PUBLIC ${CMAKE_BINARY_DIR})
+
 
 target_link_libraries(nanopolish_objlib
         PUBLIC
@@ -83,8 +83,10 @@ target_link_libraries(nanopolish_objlib
 target_include_directories(nanopolish_objlib
         PUBLIC
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/nanopolish>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/alignment>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/builtin_models>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/common>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/hmm>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/pore_model>
@@ -142,6 +144,7 @@ if (NOT APPLE AND NOT BUILD_SHARED_LIBS)
 #    target_link_libraries(nanopolish PUBLIC -static)
     target_link_libraries(nanopolish PUBLIC -static -static-libgcc -static-libstdc++)
 endif(NOT APPLE AND NOT BUILD_SHARED_LIBS)
+set_target_properties(nanopolish PROPERTIES INSTALL_RPATH "\$ORIGIN")
 
 target_link_libraries(nanopolish PUBLIC nanopolishlib)
 target_include_directories(nanopolish
@@ -230,6 +233,7 @@ install(FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/src/thirdparty/stdaln.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_call_methylation.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/nanopolish_variant_db.h
+#        ${CMAKE_BINARY_DIR}/nanopolish_export.h
         DESTINATION
         ${CMAKE_INSTALL_INCLUDEDIR}/nanopolish
         )
