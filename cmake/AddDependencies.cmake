@@ -18,7 +18,7 @@ find_package(Eigen3 REQUIRED NO_MODULE)
 
 #set(HDF5_FIND_DEBUG TRUE)
 set(HDF5_PREFER_PARALLEL TRUE)
-find_package(HDF5 1.10.0 COMPONENTS C CXX REQUIRED)
+find_package(HDF5 1.10.0 COMPONENTS C REQUIRED)
 
 ############################################################################################################
 set(nanopolish_LINK_LIBRARIES
