@@ -8,7 +8,7 @@ include(CMakeFindDependencyMacro)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}" "${CMAKE_CURRENT_LIST_DIR}/modules")
 find_dependency(OpenMP REQUIRED)
 find_dependency(ZLIB REQUIRED)
-find_dependency(HDF5 1.10.4 COMPONENTS C CXX)
+find_dependency(HDF5 1.10.4 COMPONENTS C)
 find_dependency(Eigen3 3.2 REQUIRED NO_MODULE)
 find_dependency(HTSlib REQUIRED htslib)
 ############################################################################################################
